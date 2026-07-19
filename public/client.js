@@ -16,7 +16,9 @@ function showScreen(name) {
 }
 
 let latestState = null;
-let mySubmittedThisRender = new Set(); // ローカルの二重送信防止
+
+// 記入中のテキストを一時保存(他プレイヤーの操作で再描画されても入力内容が消えないように)
+const draftTexts = {};
 
 // ---------- 参加画面 ----------
 document.getElementById('btnCreate').addEventListener('click', () => {
@@ -42,6 +44,41 @@ function showJoinError(msg) {
 
 socket.on('error_message', (msg) => showJoinError(msg));
 
+// ---------- 部屋検索 ----------
+let searchDebounce = null;
+const roomSearchInput = document.getElementById('roomSearchInput');
+if (roomSearchInput) {
+  roomSearchInput.addEventListener('input', () => {
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(() => {
+      socket.emit('search_rooms', { query: roomSearchInput.value });
+    }, 250);
+  });
+  // 画面表示時に一覧を出す
+  socket.emit('search_rooms', { query: '' });
+}
+
+socket.on('room_search_results', (results) => {
+  const box = document.getElementById('roomSearchResults');
+  if (!box) return;
+  box.innerHTML = '';
+  if (results.length === 0) {
+    box.innerHTML = '<p class="hint">待機中の部屋が見つかりません。</p>';
+    return;
+  }
+  results.forEach(r => {
+    const item = document.createElement('div');
+    item.className = 'room-result';
+    item.innerHTML = `<span class="room-result-code">${r.code}</span>
+      <span class="room-result-info">${r.hostName} の部屋・${r.playerCount}人待機中</span>`;
+    item.addEventListener('click', () => {
+      document.getElementById('joinCode').value = r.code;
+      document.getElementById('joinName').focus();
+    });
+    box.appendChild(item);
+  });
+});
+
 // ---------- ロビー ----------
 document.getElementById('btnStart').addEventListener('click', () => {
   socket.emit('start_game');
@@ -54,6 +91,10 @@ document.getElementById('btnNext').addEventListener('click', () => {
 
 document.getElementById('btnRestart').addEventListener('click', () => {
   window.location.reload();
+});
+
+document.getElementById('btnPlayAgain').addEventListener('click', () => {
+  socket.emit('restart_game');
 });
 
 // ---------- メイン描画 ----------
@@ -107,6 +148,13 @@ function nameOf(state, id) {
   return p ? p.name : '???';
 }
 
+function lifeHearts(life) {
+  if (life === null || life === undefined) return '';
+  let hearts = '';
+  for (let i = 0; i < life; i++) hearts += '❤️';
+  return hearts || '（0）';
+}
+
 function renderLobby(state) {
   const ul = document.getElementById('lobbyPlayers');
   ul.innerHTML = '';
@@ -118,14 +166,19 @@ function renderLobby(state) {
     ul.appendChild(li);
   });
 
+  const connectedCount = state.players.filter(p => p.connected).length;
+  const startingLife = Math.ceil(connectedCount / 2);
+  document.getElementById('lobbyLifePreview').textContent =
+    connectedCount >= 3 ? `開始時のライフ：${lifeHearts(startingLife)}` : '';
+
   const isHost = state.you === state.hostId;
   const startBtn = document.getElementById('btnStart');
   const hint = document.getElementById('lobbyHint');
   if (isHost) {
     startBtn.classList.remove('hidden');
     hint.classList.add('hidden');
-    startBtn.disabled = state.players.filter(p => p.connected).length < 3;
-    startBtn.textContent = startBtn.disabled ? '（あと' + (3 - state.players.filter(p => p.connected).length) + '人必要です）' : 'ゲーム開始';
+    startBtn.disabled = connectedCount < 3;
+    startBtn.textContent = startBtn.disabled ? '（あと' + (3 - connectedCount) + '人必要です）' : 'ゲーム開始';
   } else {
     startBtn.classList.add('hidden');
     hint.classList.remove('hidden');
@@ -133,7 +186,7 @@ function renderLobby(state) {
 }
 
 function roundLabel(state) {
-  return `ラウンド ${state.roundIndex + 1} / ${state.totalRounds} — 親：${nameOf(state, state.round.parentId)}`;
+  return `ラウンド ${state.roundIndex + 1} / ${state.totalRounds} — 親：${nameOf(state, state.round.parentId)} — ライフ：${lifeHearts(state.life)}`;
 }
 
 function renderWritingChild(state) {
@@ -148,6 +201,7 @@ function renderWritingChild(state) {
     const item = document.createElement('div');
     item.className = 'prompt-item';
     if (a.submitted) {
+      delete draftTexts[a.index];
       item.innerHTML = `<div class="q">${a.prompt}</div><div class="done-label">✔ 送信済み。他のメンバーを待っています…</div>`;
     } else {
       item.innerHTML = `
@@ -157,10 +211,16 @@ function renderWritingChild(state) {
       `;
       const btn = item.querySelector('button');
       const ta = item.querySelector('textarea');
+      // 直前まで入力していた内容を復元(再描画でも消えないように)
+      ta.value = draftTexts[a.index] || '';
+      ta.addEventListener('input', () => {
+        draftTexts[a.index] = ta.value;
+      });
       btn.addEventListener('click', () => {
         const text = ta.value;
         if (!text.trim()) return;
         socket.emit('submit_profile', { index: a.index, text });
+        delete draftTexts[a.index];
         btn.disabled = true;
         btn.textContent = '送信しました';
       });
@@ -259,9 +319,13 @@ function renderResult(state) {
       </div>`;
   }
 
+  document.getElementById('lifeStatus').textContent = `残りライフ：${lifeHearts(state.life)}`;
+
   renderScoreboard(state, 'scoreboard');
 
   const isHost = state.you === state.hostId;
+  const gameWillEnd = state.life !== null && state.life <= 0;
+  document.getElementById('btnNext').textContent = gameWillEnd ? '結果を見る' : '次のラウンドへ';
   document.getElementById('btnNext').classList.toggle('hidden', !isHost);
   document.getElementById('nextHint').classList.toggle('hidden', isHost);
 }
@@ -279,5 +343,15 @@ function renderScoreboard(state, elId) {
 }
 
 function renderGameOver(state) {
+  const isWin = state.outcome === 'win';
+  document.getElementById('gameoverHeading').textContent = isWin ? 'ゲームクリア！🎉' : 'ゲームオーバー…';
+  document.getElementById('gameoverSub').textContent = isWin
+    ? `ライフを${lifeHearts(state.life)}残して全員が親を経験しました！`
+    : 'ライフが尽きてしまいました…';
+
   renderScoreboard(state, 'finalScoreboard');
+
+  const isHost = state.you === state.hostId;
+  document.getElementById('btnPlayAgain').classList.toggle('hidden', !isHost);
+  document.getElementById('playAgainHint').classList.toggle('hidden', isHost);
 }

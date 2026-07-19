@@ -41,6 +41,10 @@
         <label>部屋番号</label>
         <input id="joinCode" type="text" maxlength="4" placeholder="例：A1B2" style="text-transform:uppercase">
         <button id="btnJoin" class="btn btn-outline">入室する</button>
+
+        <label>待機中の部屋を探す</label>
+        <input id="roomSearchInput" type="text" placeholder="ホスト名や部屋番号で検索">
+        <div id="roomSearchResults" class="room-search-results"></div>
       </div>
     </div>
     <p id="joinError" class="error-text hidden"></p>
@@ -52,6 +56,7 @@
       <p class="eyebrow">ロビー — 最低3人で開始できます</p>
       <h2>捜査対象を待っています…</h2>
       <ul id="lobbyPlayers" class="player-pins"></ul>
+      <p id="lobbyLifePreview" class="hint"></p>
       <button id="btnStart" class="btn btn-primary hidden">ゲーム開始</button>
       <p id="lobbyHint" class="hint">ホストが開始するのを待っています。</p>
     </div>
@@ -101,6 +106,7 @@
       <p class="eyebrow">RESULT</p>
       <h2 id="resultHeading"></h2>
       <div id="resultReveal" class="result-reveal"></div>
+      <p id="lifeStatus" class="life-status"></p>
       <div id="scoreboard" class="scoreboard"></div>
       <button id="btnNext" class="btn btn-primary hidden">次のラウンドへ</button>
       <p id="nextHint" class="hint">ホストが次のラウンドを開始するのを待っています。</p>
@@ -111,8 +117,11 @@
   <section id="screen-gameover" class="screen">
     <div class="case-card center">
       <p class="eyebrow">FINAL REPORT</p>
-      <h2>捜査完了</h2>
+      <h2 id="gameoverHeading">捜査完了</h2>
+      <p id="gameoverSub" class="hint"></p>
       <div id="finalScoreboard" class="scoreboard final"></div>
+      <button id="btnPlayAgain" class="btn btn-primary hidden">もう一度あそぶ</button>
+      <p id="playAgainHint" class="hint hidden">ホストが再戦を選ぶのを待っています。</p>
       <button id="btnRestart" class="btn btn-outline">タイトルへ戻る</button>
     </div>
   </section>

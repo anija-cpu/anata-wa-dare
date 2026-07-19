@@ -301,3 +301,33 @@ input[type="text"]:focus { border-color: var(--amber); }
 .scoreboard.final .row:first-child { border-left: 4px solid var(--amber); font-weight: 700; }
 
 .hidden { display: none !important; }
+
+.room-search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.room-result {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fffdf6;
+  border: 1px solid var(--paper-2);
+  border-radius: 3px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: border-color 0.12s ease;
+}
+.room-result:hover { border-color: var(--amber); }
+.room-result-code {
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--pin);
+}
+.room-result-info { color: var(--ink-soft); font-size: 12px; }
+
+.life-status { font-size: 15px; font-weight: 700; margin: 4px 0 12px; }

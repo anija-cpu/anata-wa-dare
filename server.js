@@ -19,10 +19,11 @@ const PERSON_COLORS = [
 ];
 function buildPersonDeck() {
   const deck = [];
-  for (let i = 1; i <= 96; i++) {
+  for (let i = 1; i <= 40; i++) {
+    const color = PERSON_COLORS[i % PERSON_COLORS.length];
     deck.push({
       id: 'p' + i,
-      url: `/images/person/${String(i).padStart(2, '0')}.jpg`
+      url: `https://placehold.co/300x400/${color}/ffffff?text=No.${i}`
     });
   }
   return deck;
@@ -48,6 +49,11 @@ function shuffle(arr) {
   return a;
 }
 
+// 人数に応じた候補人数(4人までは5枚、以降1人増えるごとに+1枚)
+function numCandidatesFor(playerCount) {
+  return 5 + Math.max(0, playerCount - 4);
+}
+
 // ---------- ルーム管理 ----------
 const rooms = new Map(); // code -> roomState
 
@@ -68,6 +74,8 @@ function createRoom(hostSocketId, hostName) {
     phase: 'lobby',
     playOrder: [],
     roundIndex: 0,
+    life: null,
+    outcome: null, // 'win' | 'lose'
     personDeck: shuffle(buildPersonDeck()),
     personDrawPtr: 0,
     profileDeck: shuffle(PROFILE_PROMPTS),
@@ -76,6 +84,16 @@ function createRoom(hostSocketId, hostName) {
   };
   rooms.set(code, room);
   return room;
+}
+
+function resetRoomForRestart(room) {
+  room.players.forEach(p => { p.score = 0; });
+  room.phase = 'lobby';
+  room.playOrder = [];
+  room.roundIndex = 0;
+  room.life = null;
+  room.outcome = null;
+  room.round = null;
 }
 
 function drawPersonCards(room, n) {
@@ -116,16 +134,15 @@ function startRound(room) {
   const order = room.playOrder;
   const parentId = order[room.roundIndex % order.length];
   const childIds = connectedPlayers(room).map(p => p.id).filter(id => id !== parentId);
+  const playerCount = connectedPlayers(room).length;
 
   const answerCard = drawPersonCards(room, 1)[0];
-  const numAssignments = childIds.length === 0 ? 0 : Math.min(3, childIds.length);
+  // ヒントはプレイヤー数-1(親以外全員が1問ずつ担当)
+  const numAssignments = childIds.length;
   const prompts = drawProfilePrompts(room, numAssignments);
 
-  // 子プレイヤーに順番に割り当て(開始位置をラウンドごとにずらして偏りを防ぐ)
   const assignments = [];
-  if (childIds.length === 0) {
-    // 全員親、進行不可なので次へ
-  } else {
+  if (childIds.length > 0) {
     const offset = room.roundIndex % childIds.length;
     for (let i = 0; i < numAssignments; i++) {
       const childId = childIds[(offset + i) % childIds.length];
@@ -144,6 +161,7 @@ function startRound(room) {
     childIds,
     answerCard,
     assignments,
+    numCandidates: numCandidatesFor(playerCount),
     candidates: null,
     guess: null
   };
@@ -160,7 +178,8 @@ function allAssignmentsRevealed(round) {
 
 function beginGuessingPhase(room) {
   const round = room.round;
-  const decoys = drawPersonCards(room, 4);
+  const decoysNeeded = Math.max(0, round.numCandidates - 1);
+  const decoys = drawPersonCards(room, decoysNeeded);
   const all = shuffle([round.answerCard, ...decoys]);
   round.candidates = all.map(c => ({ id: c.id, url: c.url, isAnswer: c.id === round.answerCard.id }));
   room.phase = 'reveal';
@@ -200,6 +219,8 @@ function broadcastState(room) {
       players: publicPlayers(room),
       roundIndex: room.roundIndex,
       totalRounds: room.playOrder.length,
+      life: room.life,
+      outcome: room.outcome,
       round: roundViewFor(room, p.id),
       you: p.id
     });
@@ -212,6 +233,24 @@ io.on('connection', (socket) => {
     socket.join(room.code);
     socket.data.roomCode = room.code;
     broadcastState(room);
+  });
+
+  socket.on('search_rooms', ({ query }) => {
+    const q = (query || '').trim().toUpperCase();
+    const results = [];
+    for (const room of rooms.values()) {
+      if (room.phase !== 'lobby') continue;
+      const host = room.players.find(p => p.id === room.hostId);
+      const hostName = host ? host.name : '';
+      if (q && !room.code.includes(q) && !hostName.toUpperCase().includes(q)) continue;
+      results.push({
+        code: room.code,
+        hostName,
+        playerCount: connectedPlayers(room).length
+      });
+      if (results.length >= 20) break;
+    }
+    socket.emit('room_search_results', results);
   });
 
   socket.on('join_room', ({ code, name }) => {
@@ -240,6 +279,8 @@ io.on('connection', (socket) => {
     }
     room.playOrder = shuffle(players.map(p => p.id));
     room.roundIndex = 0;
+    room.life = Math.ceil(players.length / 2);
+    room.outcome = null;
     startRound(room);
     broadcastState(room);
   });
@@ -276,9 +317,10 @@ io.on('connection', (socket) => {
     if (correct) {
       const parent = room.players.find(p => p.id === socket.id);
       if (parent) parent.score += 1;
+    } else if (room.life !== null) {
+      room.life = Math.max(0, room.life - 1);
     }
     room.round.guess = { cardId, correct };
-    room.round.candidates = room.round.candidates.map(c => ({ ...c, isAnswer: c.isAnswer })); // 全員に正解を開示
     room.phase = 'round_result';
     broadcastState(room);
   });
@@ -287,13 +329,31 @@ io.on('connection', (socket) => {
     const room = rooms.get(socket.data.roomCode);
     if (!room || room.hostId !== socket.id) return;
     if (room.phase !== 'round_result') return;
+
+    if (room.life !== null && room.life <= 0) {
+      room.phase = 'gameover';
+      room.outcome = 'lose';
+      room.round = null;
+      broadcastState(room);
+      return;
+    }
+
     room.roundIndex += 1;
     if (room.roundIndex >= room.playOrder.length) {
       room.phase = 'gameover';
+      room.outcome = 'win';
       room.round = null;
     } else {
       startRound(room);
     }
+    broadcastState(room);
+  });
+
+  socket.on('restart_game', () => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room || room.hostId !== socket.id) return;
+    if (room.phase !== 'gameover') return;
+    resetRoomForRestart(room);
     broadcastState(room);
   });
 
@@ -313,5 +373,5 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`偏見プロフィール サーバー起動: http://localhost:${PORT}`);
+  console.log(`あなたはだーれ サーバー起動: http://localhost:${PORT}`);
 });
