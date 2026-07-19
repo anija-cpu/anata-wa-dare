@@ -236,7 +236,28 @@ function renderResult(state) {
   document.getElementById('resultHeading').textContent = heading;
 
   const reveal = document.getElementById('resultReveal');
-  reveal.innerHTML = state.round.answerCard ? `<img src="${state.round.answerCard.url}">` : '';
+  const chosen = state.round.candidates
+    ? state.round.candidates.find(c => c.id === g.cardId)
+    : null;
+  const answer = state.round.answerCard;
+
+  if (g.correct) {
+    reveal.innerHTML = answer ? `
+      <div class="result-slot">
+        <div class="result-label correct">親が選んだ写真＝正解</div>
+        <img src="${answer.url}">
+      </div>` : '';
+  } else {
+    reveal.innerHTML = `
+      <div class="result-slot">
+        <div class="result-label wrong">親が選んだ写真</div>
+        ${chosen ? `<img src="${chosen.url}">` : ''}
+      </div>
+      <div class="result-slot">
+        <div class="result-label correct">正解</div>
+        ${answer ? `<img src="${answer.url}">` : ''}
+      </div>`;
+  }
 
   renderScoreboard(state, 'scoreboard');
 
