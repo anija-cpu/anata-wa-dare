@@ -45,25 +45,21 @@ function showJoinError(msg) {
 socket.on('error_message', (msg) => showJoinError(msg));
 
 // ---------- 部屋検索 ----------
-let searchDebounce = null;
-const roomSearchInput = document.getElementById('roomSearchInput');
-if (roomSearchInput) {
-  roomSearchInput.addEventListener('input', () => {
-    clearTimeout(searchDebounce);
-    searchDebounce = setTimeout(() => {
-      socket.emit('search_rooms', { query: roomSearchInput.value });
-    }, 250);
+const btnSearchRooms = document.getElementById('btnSearchRooms');
+if (btnSearchRooms) {
+  btnSearchRooms.addEventListener('click', () => {
+    btnSearchRooms.textContent = '検索中…';
+    socket.emit('search_rooms', { query: '' });
   });
-  // 画面表示時に一覧を出す
-  socket.emit('search_rooms', { query: '' });
 }
 
 socket.on('room_search_results', (results) => {
+  if (btnSearchRooms) btnSearchRooms.textContent = '🔍 待機中のルームを探す';
   const box = document.getElementById('roomSearchResults');
   if (!box) return;
   box.innerHTML = '';
   if (results.length === 0) {
-    box.innerHTML = '<p class="hint">待機中の部屋が見つかりません。</p>';
+    box.innerHTML = '<p class="hint">待機中のルームはありません。</p>';
     return;
   }
   results.forEach(r => {
