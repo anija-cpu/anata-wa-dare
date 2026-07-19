@@ -9,21 +9,14 @@ const io = new Server(server);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ---------- ダミーデータ ----------
-// 人物カード: ロジック優先のためダミー画像(placehold.co)を使用
-const PERSON_COLORS = [
-  '6b7280', 'ef4444', 'f97316', 'f59e0b', 'eab308',
-  '84cc16', '22c55e', '10b981', '14b8a6', '06b6d4',
-  '0ea5e9', '3b82f6', '6366f1', '8b5cf6', 'a855f7',
-  'd946ef', 'ec4899', 'f43f5e', '78716c', '57534e'
-];
+// ---------- 人物データ ----------
+// public/images/person/01.jpg 〜 96.jpg を読み込む
 function buildPersonDeck() {
   const deck = [];
-  for (let i = 1; i <= 40; i++) {
-    const color = PERSON_COLORS[i % PERSON_COLORS.length];
+  for (let i = 1; i <= 96; i++) {
     deck.push({
       id: 'p' + i,
-      url: `https://placehold.co/300x400/${color}/ffffff?text=No.${i}`
+      url: `/images/person/${String(i).padStart(2, '0')}.jpg`
     });
   }
   return deck;
