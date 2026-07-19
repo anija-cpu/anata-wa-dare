@@ -70,6 +70,7 @@
         <img id="answerImg" class="person-photo" src="" alt="お題の人物">
       </div>
       <div id="promptList" class="prompt-list"></div>
+      <p id="writingProgress" class="writing-progress"></p>
       <p class="hint">親プレイヤーは今、目を閉じて待っています。見た目だけで自由に妄想してOK！</p>
     </div>
   </section>
@@ -82,6 +83,7 @@
       <h2>目を閉じて、少々お待ちを…</h2>
       <p class="hint">他のみんなが、あなたのプロフィールを作成中です。</p>
       <p id="submitStatus" class="submit-status"></p>
+      <div id="stampBarParent" class="stamp-bar"></div>
     </div>
   </section>
 
@@ -95,7 +97,7 @@
 
       <div id="notesArea" class="notes-area"></div>
 
-      <p id="parentGuessHint" class="hint hidden">ヒントがすべて開いたら、正解だと思う画像を選択してください。</p>
+      <p id="parentGuessHint" class="hint hidden">正解だと思う写真を選択してください。</p>
     </div>
   </section>
 
@@ -126,6 +128,8 @@
   </section>
 
 </main>
+
+<div id="stampToastArea" class="stamp-toast-area"></div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="/client.js"></script>

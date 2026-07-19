@@ -331,3 +331,59 @@ input[type="text"]:focus { border-color: var(--amber); }
 .room-result-info { color: var(--ink-soft); font-size: 12px; }
 
 .life-status { font-size: 15px; font-weight: 700; margin: 4px 0 12px; }
+
+.writing-progress { font-size: 13px; font-weight: 700; color: var(--amber-deep); margin: 4px 0 0; }
+
+.stamp-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 14px;
+}
+.stamp-btn {
+  font-size: 22px;
+  line-height: 1;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--paper-2);
+  background: #fffdf6;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+.stamp-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
+.stamp-btn:active { transform: translateY(0); }
+
+.stamp-toast-area {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+.stamp-toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(20,17,15,0.88);
+  color: #fff8e4;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+  animation: stamp-in 0.25s ease;
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+.stamp-toast.fade-out { opacity: 0; transform: translateY(-8px); }
+.stamp-toast-emoji { font-size: 22px; }
+.stamp-toast-name { font-weight: 700; color: var(--amber); }
+
+@keyframes stamp-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.9); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}

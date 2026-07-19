@@ -20,6 +20,8 @@ let latestState = null;
 // 記入中のテキストを一時保存(他プレイヤーの操作で再描画されても入力内容が消えないように)
 const draftTexts = {};
 
+const STAMP_EMOJIS = ['👀', '🤔', '😂', '🔥', '👍', '😅', '🤫', '❤️'];
+
 // ---------- 参加画面 ----------
 document.getElementById('btnCreate').addEventListener('click', () => {
   const name = document.getElementById('createName').value;
@@ -91,6 +93,32 @@ document.getElementById('btnRestart').addEventListener('click', () => {
 
 document.getElementById('btnPlayAgain').addEventListener('click', () => {
   socket.emit('restart_game');
+});
+
+// ---------- スタンプ機能 ----------
+function buildStampBar(container) {
+  container.innerHTML = '';
+  STAMP_EMOJIS.forEach(emoji => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'stamp-btn';
+    btn.textContent = emoji;
+    btn.addEventListener('click', () => {
+      socket.emit('send_stamp', { emoji });
+    });
+    container.appendChild(btn);
+  });
+}
+
+socket.on('stamp_broadcast', ({ playerName, emoji }) => {
+  const area = document.getElementById('stampToastArea');
+  if (!area) return;
+  const toast = document.createElement('div');
+  toast.className = 'stamp-toast';
+  toast.innerHTML = `<span class="stamp-toast-emoji">${emoji}</span><span class="stamp-toast-name">${playerName}</span>`;
+  area.appendChild(toast);
+  setTimeout(() => toast.classList.add('fade-out'), 1800);
+  setTimeout(() => toast.remove(), 2300);
 });
 
 // ---------- メイン描画 ----------
@@ -189,8 +217,17 @@ function renderWritingChild(state) {
   document.getElementById('writingRoundLabel').textContent = roundLabel(state);
   document.getElementById('answerImg').src = state.round.answerCard ? state.round.answerCard.url : '';
 
+  const total = state.round.assignments.length;
+  const submittedCount = state.round.assignments.filter(a => a.submitted).length;
+  document.getElementById('writingProgress').textContent = `${submittedCount} / ${total} 人 入力済み`;
+
   const myAssignments = state.round.assignments.filter(a => a.childId === state.you);
   const box = document.getElementById('promptList');
+
+  // 入力中のテキストエリアにフォーカスがあったかどうかを再描画前に記録しておく
+  const hadFocus = document.activeElement && document.activeElement.tagName === 'TEXTAREA' && box.contains(document.activeElement);
+  const caretPos = hadFocus ? document.activeElement.selectionStart : null;
+
   box.innerHTML = '';
 
   myAssignments.forEach(a => {
@@ -198,11 +235,14 @@ function renderWritingChild(state) {
     item.className = 'prompt-item';
     if (a.submitted) {
       delete draftTexts[a.index];
-      item.innerHTML = `<div class="q">${a.prompt}</div><div class="done-label">✔ 送信済み。他のメンバーを待っています…</div>`;
+      item.innerHTML = `
+        <div class="done-label">✔ 送信済み。他のメンバーを待っています…</div>
+        <div class="stamp-bar" data-stamp></div>
+      `;
+      buildStampBar(item.querySelector('[data-stamp]'));
     } else {
       item.innerHTML = `
-        <div class="q">${a.prompt}</div>
-        <textarea rows="2" maxlength="60" placeholder="見た目から想像して自由にどうぞ…"></textarea>
+        <textarea rows="3" maxlength="60" placeholder="見た目から感じたことを自由にどうぞ…"></textarea>
         <button class="btn btn-primary" data-index="${a.index}">この内容で送信</button>
       `;
       const btn = item.querySelector('button');
@@ -220,6 +260,11 @@ function renderWritingChild(state) {
         btn.disabled = true;
         btn.textContent = '送信しました';
       });
+      if (hadFocus) {
+        ta.focus();
+        const pos = caretPos !== null ? Math.min(caretPos, ta.value.length) : ta.value.length;
+        ta.setSelectionRange(pos, pos);
+      }
     }
     box.appendChild(item);
   });
@@ -233,17 +278,21 @@ function renderWritingParent(state) {
   document.getElementById('parentWaitRoundLabel').textContent = roundLabel(state);
   const submitted = state.round.assignments.filter(a => a.submitted).length;
   const total = state.round.assignments.length;
-  document.getElementById('submitStatus').textContent = `${submitted} / ${total} 件、記入完了`;
+  document.getElementById('submitStatus').textContent = `${submitted} / ${total} 人 入力済み`;
+
+  const stampBar = document.getElementById('stampBarParent');
+  if (stampBar && stampBar.childElementCount === 0) {
+    buildStampBar(stampBar);
+  }
 }
 
 function renderReveal(state) {
   document.getElementById('revealRoundLabel').textContent = roundLabel(state);
   const isParent = state.you === state.round.parentId;
-  const allRevealed = state.round.assignments.every(a => a.revealed);
 
   document.getElementById('revealHeading').textContent = isParent
     ? 'あなたはだーれ'
-    : 'ヒントを開いて正解を導こう';
+    : 'さあ、親を惑わせよう';
 
   // 候補写真
   const row = document.getElementById('candidateRow');
@@ -251,7 +300,7 @@ function renderReveal(state) {
   state.round.candidates.forEach(c => {
     const div = document.createElement('div');
     div.className = 'candidate';
-    const canPick = isParent && allRevealed;
+    const canPick = isParent;
     if (canPick) div.classList.add('pickable');
     if (!isParent && c.isAnswer) div.classList.add('answer-hint');
     div.innerHTML = `<img src="${c.url}"><div class="tag">${!isParent && c.isAnswer ? '本人はこちら' : '&nbsp;'}</div>`;
@@ -263,27 +312,18 @@ function renderReveal(state) {
     row.appendChild(div);
   });
 
-  // ヒントメモ
+  // ヒントメモ(最初から全公開)
   const notes = document.getElementById('notesArea');
   notes.innerHTML = '';
   state.round.assignments.forEach(a => {
     const div = document.createElement('div');
     div.className = 'note';
-    if (a.revealed) {
-      div.innerHTML = `<div class="q">${a.prompt}</div><div class="a">${a.text}</div>`;
-    } else if (a.childId === state.you) {
-      div.innerHTML = `<div class="q">${a.prompt}</div><div class="locked">あなたの回答：まだ非公開</div>
-        <button class="btn btn-outline">このヒントを公開する</button>`;
-      div.querySelector('button').addEventListener('click', () => {
-        socket.emit('reveal_profile', { index: a.index });
-      });
-    } else {
-      div.innerHTML = `<div class="q">${a.prompt}</div><div class="locked">${nameOf(state, a.childId)} さんが考え中…（非公開）</div>`;
-    }
+    const label = a.childId === state.you ? 'あなたの直感' : `${nameOf(state, a.childId)} さんの直感`;
+    div.innerHTML = `<div class="q">${label}</div><div class="a">${a.text}</div>`;
     notes.appendChild(div);
   });
 
-  document.getElementById('parentGuessHint').classList.toggle('hidden', !(isParent && allRevealed));
+  document.getElementById('parentGuessHint').classList.toggle('hidden', !isParent);
 }
 
 function renderResult(state) {
@@ -345,7 +385,13 @@ function renderGameOver(state) {
     ? `ライフを${lifeHearts(state.life)}残して全員が親を経験しました！`
     : 'ライフが尽きてしまいました…';
 
-  renderScoreboard(state, 'finalScoreboard');
+  const finalBoard = document.getElementById('finalScoreboard');
+  if (isWin) {
+    finalBoard.classList.add('hidden');
+  } else {
+    finalBoard.classList.remove('hidden');
+    renderScoreboard(state, 'finalScoreboard');
+  }
 
   const isHost = state.you === state.hostId;
   document.getElementById('btnPlayAgain').classList.toggle('hidden', !isHost);

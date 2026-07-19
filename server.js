@@ -22,17 +22,6 @@ function buildPersonDeck() {
   return deck;
 }
 
-const PROFILE_PROMPTS = [
-  '好きな食べ物は？', '休日の過ごし方は？', '特技は？', '職業は？',
-  '性格を一言で言うと？', '好きな音楽ジャンルは？', '苦手なものは？',
-  '口癖は？', '学生時代の部活は？', '隠れた才能は？',
-  '好きな映画のジャンルは？', '例えるなら何の動物？', '朝型？夜型？',
-  'SNSでよく見ているものは？', '好きな旅行先は？',
-  '実は昔やっていたことは？', '休みの日の服装は？', '好きな色は？',
-  '恋愛観は？', '将来の夢は？', '好きな飲み物は？', '得意な家事は？',
-  '好きな季節は？', '休日によく行く場所は？', 'ストレス発散方法は？'
-];
-
 function shuffle(arr) {
   const a = arr.slice();
   for (let i = a.length - 1; i > 0; i--) {
@@ -71,8 +60,6 @@ function createRoom(hostSocketId, hostName) {
     outcome: null, // 'win' | 'lose'
     personDeck: shuffle(buildPersonDeck()),
     personDrawPtr: 0,
-    profileDeck: shuffle(PROFILE_PROMPTS),
-    profileDrawPtr: 0,
     round: null
   };
   rooms.set(code, room);
@@ -102,19 +89,6 @@ function drawPersonCards(room, n) {
   return drawn;
 }
 
-function drawProfilePrompts(room, n) {
-  const drawn = [];
-  for (let i = 0; i < n; i++) {
-    if (room.profileDrawPtr >= room.profileDeck.length) {
-      room.profileDeck = shuffle(room.profileDeck);
-      room.profileDrawPtr = 0;
-    }
-    drawn.push(room.profileDeck[room.profileDrawPtr]);
-    room.profileDrawPtr++;
-  }
-  return drawn;
-}
-
 function connectedPlayers(room) {
   return room.players.filter(p => p.connected);
 }
@@ -130,9 +104,8 @@ function startRound(room) {
   const playerCount = connectedPlayers(room).length;
 
   const answerCard = drawPersonCards(room, 1)[0];
-  // ヒントはプレイヤー数-1(親以外全員が1問ずつ担当)
+  // ヒントはプレイヤー数-1(親以外全員が1問ずつ、感じたことを自由記述)
   const numAssignments = childIds.length;
-  const prompts = drawProfilePrompts(room, numAssignments);
 
   const assignments = [];
   if (childIds.length > 0) {
@@ -141,7 +114,6 @@ function startRound(room) {
       const childId = childIds[(offset + i) % childIds.length];
       assignments.push({
         index: i,
-        prompt: prompts[i],
         childId,
         text: null,
         revealed: false
@@ -175,6 +147,8 @@ function beginGuessingPhase(room) {
   const decoys = drawPersonCards(room, decoysNeeded);
   const all = shuffle([round.answerCard, ...decoys]);
   round.candidates = all.map(c => ({ id: c.id, url: c.url, isAnswer: c.id === round.answerCard.id }));
+  // ヒントはボタン操作不要で最初から全公開
+  round.assignments.forEach(a => { a.revealed = true; });
   room.phase = 'reveal';
 }
 
@@ -189,7 +163,6 @@ function roundViewFor(room, socketId) {
     answerCard: isParent ? undefined : round.answerCard,
     assignments: round.assignments.map(a => ({
       index: a.index,
-      prompt: a.prompt,
       childId: a.childId,
       text: (a.revealed || a.childId === socketId) ? a.text : null,
       submitted: a.text !== null,
@@ -290,13 +263,13 @@ io.on('connection', (socket) => {
     broadcastState(room);
   });
 
-  socket.on('reveal_profile', ({ index }) => {
+  socket.on('send_stamp', ({ emoji }) => {
     const room = rooms.get(socket.data.roomCode);
-    if (!room || !room.round || room.phase !== 'reveal') return;
-    const a = room.round.assignments.find(a => a.index === index && a.childId === socket.id);
-    if (!a || a.revealed) return;
-    a.revealed = true;
-    broadcastState(room);
+    if (!room) return;
+    const player = room.players.find(p => p.id === socket.id);
+    if (!player) return;
+    const safeEmoji = typeof emoji === 'string' ? emoji.slice(0, 4) : '👍';
+    io.to(room.code).emit('stamp_broadcast', { playerName: player.name, emoji: safeEmoji });
   });
 
   socket.on('submit_guess', ({ cardId }) => {
