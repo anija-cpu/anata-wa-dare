@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>あなたはだーれ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<div class="board-texture"></div>
+
+<header class="topbar">
+  <h1 class="logo">あなたは<span>だーれ</span></h1>
+  <div id="roomBadge" class="room-badge hidden">部屋番号 <strong id="roomCodeLabel"></strong></div>
+</header>
+
+<main id="app">
+
+  <!-- ===== 参加画面 ===== -->
+  <section id="screen-join" class="screen active">
+    <div class="case-card intro">
+      <p class="eyebrow">CASE FILE №182183</p>
+      <h2>見た目だけで、その人を当ててみせろ。</h2>
+      <p class="lede">子プレイヤーは人物の写真を見て、見た目だけでプロフィールを妄想。親プレイヤーは、その勝手な決めつけだけを頼りに5人の中から本人を探し当てる、告白系推理パーティゲーム。</p>
+    </div>
+
+    <div class="join-grid">
+      <div class="case-card">
+        <h3>部屋を作る</h3>
+        <label>あなたの名前</label>
+        <input id="createName" type="text" maxlength="12" placeholder="たとえば：かこ">
+        <button id="btnCreate" class="btn btn-primary">部屋を作成する</button>
+      </div>
+      <div class="case-card">
+        <h3>部屋に入る</h3>
+        <label>あなたの名前</label>
+        <input id="joinName" type="text" maxlength="12" placeholder="たとえば：むたく">
+        <label>部屋番号</label>
+        <input id="joinCode" type="text" maxlength="4" placeholder="例：A1B2" style="text-transform:uppercase">
+        <button id="btnJoin" class="btn btn-outline">入室する</button>
+      </div>
+    </div>
+    <p id="joinError" class="error-text hidden"></p>
+  </section>
+
+  <!-- ===== ロビー ===== -->
+  <section id="screen-lobby" class="screen">
+    <div class="case-card">
+      <p class="eyebrow">ロビー — 最低3人で開始できます</p>
+      <h2>捜査対象を待っています…</h2>
+      <ul id="lobbyPlayers" class="player-pins"></ul>
+      <button id="btnStart" class="btn btn-primary hidden">ゲーム開始</button>
+      <p id="lobbyHint" class="hint">ホストが開始するのを待っています。</p>
+    </div>
+  </section>
+
+  <!-- ===== 記入フェーズ（子） ===== -->
+  <section id="screen-writing-child" class="screen">
+    <div class="case-card">
+      <p class="eyebrow" id="writingRoundLabel"></p>
+      <h2>この人物、あなたの直感で語ってください</h2>
+      <div class="person-spot">
+        <img id="answerImg" class="person-photo" src="" alt="お題の人物">
+      </div>
+      <div id="promptList" class="prompt-list"></div>
+      <p class="hint">親プレイヤーは今、目を閉じて待っています。見た目だけで自由に妄想してOK！</p>
+    </div>
+  </section>
+
+  <!-- ===== 記入フェーズ（親：待機） ===== -->
+  <section id="screen-writing-parent" class="screen">
+    <div class="case-card center">
+      <p class="eyebrow" id="parentWaitRoundLabel"></p>
+      <div class="eye-closed">🙈</div>
+      <h2>目を閉じて、少々お待ちを…</h2>
+      <p class="hint">他のみんなが、あなたのプロフィールを作成中です。</p>
+      <p id="submitStatus" class="submit-status"></p>
+    </div>
+  </section>
+
+  <!-- ===== 公開・推理フェーズ ===== -->
+  <section id="screen-reveal" class="screen">
+    <div class="case-card">
+      <p class="eyebrow" id="revealRoundLabel"></p>
+      <h2 id="revealHeading">あなたはだーれ</h2>
+
+      <div id="candidateRow" class="candidate-row"></div>
+
+      <div id="notesArea" class="notes-area"></div>
+
+      <p id="parentGuessHint" class="hint hidden">ヒントがすべて開いたら、正解だと思う画像を選択してください。</p>
+    </div>
+  </section>
+
+  <!-- ===== ラウンド結果 ===== -->
+  <section id="screen-result" class="screen">
+    <div class="case-card center">
+      <p class="eyebrow">RESULT</p>
+      <h2 id="resultHeading"></h2>
+      <div id="resultReveal" class="result-reveal"></div>
+      <div id="scoreboard" class="scoreboard"></div>
+      <button id="btnNext" class="btn btn-primary hidden">次のラウンドへ</button>
+      <p id="nextHint" class="hint">ホストが次のラウンドを開始するのを待っています。</p>
+    </div>
+  </section>
+
+  <!-- ===== ゲーム終了 ===== -->
+  <section id="screen-gameover" class="screen">
+    <div class="case-card center">
+      <p class="eyebrow">FINAL REPORT</p>
+      <h2>捜査完了</h2>
+      <div id="finalScoreboard" class="scoreboard final"></div>
+      <button id="btnRestart" class="btn btn-outline">タイトルへ戻る</button>
+    </div>
+  </section>
+
+</main>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/client.js"></script>
+</body>
+</html>
