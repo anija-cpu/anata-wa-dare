@@ -14,8 +14,19 @@
 
 <header class="topbar">
   <h1 class="logo">あなたは<span>だーれ</span></h1>
-  <div id="roomBadge" class="room-badge hidden">部屋番号 <strong id="roomCodeLabel"></strong></div>
+  <div class="topbar-right">
+    <div class="volume-control">
+      <button id="btnMute" class="mute-btn" title="BGMのオン/オフ">🔊</button>
+      <button id="btnVolDown" class="vol-btn" title="音量を下げる">－</button>
+      <input id="volumeSlider" class="volume-slider" type="range" min="0" max="100" step="1" value="35">
+      <button id="btnVolUp" class="vol-btn" title="音量を上げる">＋</button>
+      <span id="volumeLabel" class="volume-label">35%</span>
+    </div>
+    <div id="roomBadge" class="room-badge hidden">部屋番号 <strong id="roomCodeLabel"></strong></div>
+  </div>
 </header>
+
+<audio id="bgmAudio" src="/audio/kowareta-waltz.mp3" loop preload="auto"></audio>
 
 <main id="app">
 
@@ -128,6 +139,10 @@
   </section>
 
 </main>
+
+<footer class="credit-footer">
+  BGM「kowareta-waltz」by <a href="https://music.storyinvention.com/" target="_blank" rel="noopener">もみじばミュージック</a>
+</footer>
 
 <div id="stampToastArea" class="stamp-toast-area"></div>
 

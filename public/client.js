@@ -22,6 +22,52 @@ const draftTexts = {};
 
 const STAMP_EMOJIS = ['👀', '🤔', '😂', '🔥', '👍', '😅', '🤫', '❤️'];
 
+// ---------- BGM ----------
+const bgmAudio = document.getElementById('bgmAudio');
+const btnMute = document.getElementById('btnMute');
+const btnVolDown = document.getElementById('btnVolDown');
+const btnVolUp = document.getElementById('btnVolUp');
+const volumeSlider = document.getElementById('volumeSlider');
+const volumeLabel = document.getElementById('volumeLabel');
+
+let volume = 35; // 0-100
+let bgmStarted = false;
+let userMuted = false;
+
+function applyVolume() {
+  bgmAudio.volume = volume / 100;
+  volumeSlider.value = volume;
+  volumeLabel.textContent = volume + '%';
+}
+
+function setVolume(v) {
+  volume = Math.max(0, Math.min(100, Math.round(v)));
+  applyVolume();
+}
+
+applyVolume();
+
+volumeSlider.addEventListener('input', () => setVolume(+volumeSlider.value));
+btnVolDown.addEventListener('click', () => setVolume(volume - 1));
+btnVolUp.addEventListener('click', () => setVolume(volume + 1));
+
+function tryStartBgm() {
+  if (bgmStarted || userMuted) return;
+  bgmAudio.play().then(() => { bgmStarted = true; }).catch(() => {
+    // ブラウザの自動再生制限で失敗した場合は、次のクリックで再度試す
+  });
+}
+// 最初のクリック/タップをきっかけに再生開始(自動再生制限への対応)
+document.addEventListener('click', tryStartBgm, { once: true });
+
+btnMute.addEventListener('click', () => {
+  userMuted = !userMuted;
+  bgmAudio.muted = userMuted;
+  btnMute.textContent = userMuted ? '🔇' : '🔊';
+  btnMute.classList.toggle('is-muted', userMuted);
+  if (!userMuted) tryStartBgm();
+});
+
 // ---------- 参加画面 ----------
 document.getElementById('btnCreate').addEventListener('click', () => {
   const name = document.getElementById('createName').value;
