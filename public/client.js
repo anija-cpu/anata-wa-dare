@@ -76,8 +76,11 @@ btnEraser.addEventListener('click', () => {
 
 function resizeDoodleCanvas() {
   const rect = answerImg.getBoundingClientRect();
-  doodleCanvas.width = rect.width || 200;
-  doodleCanvas.height = rect.height || 266;
+  const w = rect.width || 200;
+  const h = rect.height || 266;
+  // widthやheightへの代入はそれだけでcanvasの内容をクリアしてしまうため、変化時のみ行う
+  if (doodleCanvas.width !== w) doodleCanvas.width = w;
+  if (doodleCanvas.height !== h) doodleCanvas.height = h;
 }
 
 function clearDoodle() {
@@ -380,6 +383,9 @@ function buildStampBar(container) {
   renderPage();
 }
 
+// スタンプはいつでも(どの画面でも)送れるよう、1つのグローバルボタンとして初期化
+buildStampBar(document.getElementById('floatingStampBar'));
+
 socket.on('stamp_broadcast', ({ playerName, type, value }) => {
   const area = document.getElementById('stampToastArea');
   if (!area) return;
@@ -390,8 +396,7 @@ socket.on('stamp_broadcast', ({ playerName, type, value }) => {
     : `<span class="stamp-toast-emoji">${value}</span>`;
   toast.innerHTML = `${content}<span class="stamp-toast-name">${playerName}</span>`;
   area.appendChild(toast);
-  setTimeout(() => toast.classList.add('fade-out'), 1800);
-  setTimeout(() => toast.remove(), 2300);
+  setTimeout(() => toast.remove(), 2600);
 });
 
 // ---------- メイン描画 ----------
@@ -403,6 +408,7 @@ socket.on('game_state', (state) => {
 function render(state) {
   document.getElementById('roomBadge').classList.remove('hidden');
   document.getElementById('roomCodeLabel').textContent = state.code;
+  document.getElementById('floatingStampBar').classList.remove('hidden');
 
   if (state.phase === 'lobby') {
     renderLobby(state);
@@ -488,7 +494,11 @@ function roundLabel(state) {
 
 function renderWritingChild(state) {
   document.getElementById('writingRoundLabel').textContent = roundLabel(state);
-  document.getElementById('answerImg').src = state.round.answerCard ? state.round.answerCard.url : '';
+  const newAnswerUrl = state.round.answerCard ? state.round.answerCard.url : '';
+  // 同じURLへの再代入はブラウザによってはload再発火→落書き消去の原因になるため、変化時のみ更新
+  if (answerImg.getAttribute('src') !== newAnswerUrl) {
+    answerImg.src = newAnswerUrl;
+  }
 
   // ラウンドが変わった時だけ、らくがきをリセットする(再描画のたびには消さない)
   const doodleRoundKey = `${state.roundIndex}-${state.round.answerCard ? state.round.answerCard.id : ''}`;
@@ -516,11 +526,7 @@ function renderWritingChild(state) {
     item.className = 'prompt-item';
     if (a.submitted) {
       delete draftTexts[a.index];
-      item.innerHTML = `
-        <div class="done-label">✔ 送信済み。他のメンバーを待っています…</div>
-        <div class="stamp-bar" data-stamp></div>
-      `;
-      buildStampBar(item.querySelector('[data-stamp]'));
+      item.innerHTML = `<div class="done-label">✔ 送信済み。他のメンバーを待っています…</div>`;
     } else {
       item.innerHTML = `
         <textarea rows="3" maxlength="60" placeholder="見た目から感じたことを自由にどうぞ…"></textarea>
@@ -560,11 +566,6 @@ function renderWritingParent(state) {
   const submitted = state.round.assignments.filter(a => a.submitted).length;
   const total = state.round.assignments.length;
   document.getElementById('submitStatus').textContent = `${submitted} / ${total} 人 入力済み`;
-
-  const stampBar = document.getElementById('stampBarParent');
-  if (stampBar && stampBar.childElementCount === 0) {
-    buildStampBar(stampBar);
-  }
 }
 
 function renderReveal(state) {
