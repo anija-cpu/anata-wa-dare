@@ -298,7 +298,9 @@ io.on('connection', (socket) => {
     const color = typeof seg.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(seg.color) ? seg.color : '#c1443c';
     const size = typeof seg.size === 'number' && isFinite(seg.size) ? Math.max(1, Math.min(30, seg.size)) : 4;
     const alpha = typeof seg.alpha === 'number' && isFinite(seg.alpha) ? Math.max(0.1, Math.min(1, seg.alpha)) : 1;
-    const segment = { x0, y0, x1, y1, tool, color, size, alpha };
+    const shape = seg.shape === 'square' ? 'square' : 'round';
+    const quality = ['solid', 'marker', 'chalk'].includes(seg.quality) ? seg.quality : 'solid';
+    const segment = { x0, y0, x1, y1, tool, color, size, alpha, shape, quality };
 
     // 結果発表画面で再現できるよう、ラウンド内の落書き履歴として保存(上限を設けてメモリ膨張を防ぐ)
     room.round.doodleSegments.push(segment);

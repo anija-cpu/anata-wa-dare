@@ -84,10 +84,37 @@
         </div>
       </div>
       <div class="doodle-toolbar">
-        <div class="color-wheel-wrap">
-          <canvas id="colorWheelCanvas" class="color-wheel-canvas" width="140" height="140"></canvas>
-          <div id="colorWheelMarker" class="color-wheel-marker"></div>
+        <div class="tool-tabs" id="toolTabs">
+          <button type="button" class="tool-tab-btn active" data-tab="wheel" title="カラーホイール">🎨</button>
+          <button type="button" class="tool-tab-btn" data-tab="palette" title="パレット">🟧</button>
+          <button type="button" class="tool-tab-btn" data-tab="shape" title="ペン先の形">⚫</button>
+          <button type="button" class="tool-tab-btn" data-tab="quality" title="ペンの質感">🖌️</button>
         </div>
+
+        <div class="doodle-toolbar-body">
+        <div class="tool-panel" data-panel="wheel">
+          <div class="color-wheel-wrap">
+            <canvas id="colorWheelCanvas" class="color-wheel-canvas" width="140" height="140"></canvas>
+            <div id="colorWheelMarker" class="color-wheel-marker"></div>
+          </div>
+          <div class="brightness-row">
+            <span class="brightness-icon">☀️</span>
+            <input id="doodleBrightness" type="range" min="0" max="100" value="100" class="doodle-slider" title="明度">
+          </div>
+        </div>
+
+        <div class="tool-panel hidden" data-panel="palette">
+          <div id="paletteGrid" class="palette-grid"></div>
+        </div>
+
+        <div class="tool-panel hidden" data-panel="shape">
+          <div class="option-row" id="shapeOptions"></div>
+        </div>
+
+        <div class="tool-panel hidden" data-panel="quality">
+          <div class="option-row" id="qualityOptions"></div>
+        </div>
+
         <div class="doodle-controls">
           <div class="doodle-control-row">
             <span id="colorPreview" class="color-preview"><span id="colorPreviewFill" class="color-preview-fill"></span></span>
@@ -101,6 +128,7 @@
             </label>
             <button id="btnEraser" type="button" class="tool-btn" title="消しゴム">🧹</button>
           </div>
+        </div>
         </div>
       </div>
       <div id="promptList" class="prompt-list"></div>

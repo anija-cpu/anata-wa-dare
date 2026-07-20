@@ -36,15 +36,41 @@ const colorWheelMarker = document.getElementById('colorWheelMarker');
 const colorPreviewFill = document.getElementById('colorPreviewFill');
 const doodleSizeSlider = document.getElementById('doodleSize');
 const doodleOpacitySlider = document.getElementById('doodleOpacity');
+const doodleBrightnessSlider = document.getElementById('doodleBrightness');
 const btnEraser = document.getElementById('btnEraser');
+const toolTabsBox = document.getElementById('toolTabs');
+const paletteGrid = document.getElementById('paletteGrid');
+const shapeOptionsBox = document.getElementById('shapeOptions');
+const qualityOptionsBox = document.getElementById('qualityOptions');
+
+const PALETTE_COLORS = [
+  '#000000', '#414141', '#7d7d7d', '#b5b5b5', '#e5e5e5', '#ffffff',
+  '#c1443c', '#e8543c', '#e8a33d', '#e8d23d', '#8bc34a', '#4c7a4a',
+  '#2e9b8f', '#3b9fc9', '#3b6ea5', '#5b5ba6', '#7d5ba6', '#a5479e',
+  '#d9578f', '#8a5a3c', '#c98a5b', '#6b7280'
+];
+const SHAPE_OPTIONS = [
+  { id: 'round', icon: '⚫', label: '丸' },
+  { id: 'square', icon: '⬛', label: '四角' }
+];
+const QUALITY_OPTIONS = [
+  { id: 'solid', icon: '✏️', label: 'なめらか' },
+  { id: 'marker', icon: '🖊️', label: '蛍光ペン' },
+  { id: 'chalk', icon: '🖍️', label: 'チョーク' }
+];
 
 let doodleDrawing = false;
 let lastDoodleRoundKey = null;
 let doodleLastPoint = null;
+let doodleHue = 6;      // 0-360
+let doodleSat = 0.66;   // 0-1
+let doodleValue = 1;    // 0-1 (明度。ブラシの明度スライダーで変更)
 let doodleColor = '#c1443c';
 let doodleSize = 4;
 let doodleOpacity = 100; // 0-100
 let doodleTool = 'pen'; // 'pen' | 'eraser'
+let doodleShape = 'round'; // 'round' | 'square'
+let doodleQuality = 'solid'; // 'solid' | 'marker' | 'chalk'
 
 function hsvToRgb(h, s, v) {
   const c = v * s;
@@ -60,11 +86,28 @@ function hsvToRgb(h, s, v) {
   return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
 }
 
+function rgbToHsv(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const d = max - min;
+  let h;
+  if (d === 0) h = 0;
+  else if (max === r) h = 60 * (((g - b) / d) % 6);
+  else if (max === g) h = 60 * ((b - r) / d + 2);
+  else h = 60 * ((r - g) / d + 4);
+  if (h < 0) h += 360;
+  const s = max === 0 ? 0 : d / max;
+  return [h, s, max];
+}
+
 function rgbToHex(r, g, b) {
   return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
 }
+function hexToRgb(hex) {
+  return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
+}
 
-// カラーホイールを描画(角度=色相、中心からの距離=彩度)
+// カラーホイールを描画(角度=色相、中心からの距離=彩度、明度は常に最大で描画)
 function buildColorWheel() {
   const size = colorWheelCanvas.width;
   const cx = size / 2, cy = size / 2, radius = size / 2;
@@ -89,12 +132,16 @@ function buildColorWheel() {
 }
 buildColorWheel();
 
+function recomputeColor() {
+  const [r, g, b] = hsvToRgb(doodleHue, doodleSat, doodleValue);
+  doodleColor = rgbToHex(r, g, b);
+  updateColorPreview();
+}
+
 function updateColorPreview() {
-  const hex = doodleColor;
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
+  const [r, g, b] = hexToRgb(doodleColor);
   colorPreviewFill.style.background = `rgba(${r}, ${g}, ${b}, ${doodleOpacity / 100})`;
+  updatePaletteActiveState();
 }
 
 function setMarkerPosition(x, y) {
@@ -115,7 +162,6 @@ function pickColorFromWheel(e) {
   let dx = x - cx, dy = y - cy;
   let dist = Math.sqrt(dx * dx + dy * dy);
   if (dist > radius) {
-    // 円の外をクリックした場合は縁に丸める
     dx = (dx / dist) * radius;
     dy = (dy / dist) * radius;
     dist = radius;
@@ -124,12 +170,11 @@ function pickColorFromWheel(e) {
   }
   let angle = Math.atan2(dy, dx) * 180 / Math.PI;
   if (angle < 0) angle += 360;
-  const sat = Math.min(dist / radius, 1);
-  const [r, g, b] = hsvToRgb(angle, sat, 1);
-  doodleColor = rgbToHex(r, g, b);
+  doodleHue = angle;
+  doodleSat = Math.min(dist / radius, 1);
   doodleTool = 'pen';
   setMarkerPosition(x, y);
-  updateColorPreview();
+  recomputeColor();
   updateToolUI();
 }
 
@@ -141,9 +186,81 @@ colorWheelCanvas.addEventListener('touchstart', (e) => { wheelDragging = true; p
 colorWheelCanvas.addEventListener('touchmove', (e) => { if (wheelDragging) pickColorFromWheel(e); e.preventDefault(); }, { passive: false });
 colorWheelCanvas.addEventListener('touchend', () => { wheelDragging = false; });
 
-// 初期マーカー位置(初期カラーに合わせて縁の赤付近に配置)
+doodleBrightnessSlider.addEventListener('input', () => {
+  doodleValue = +doodleBrightnessSlider.value / 100;
+  recomputeColor();
+});
+
+// 初期マーカー位置(初期カラーに合わせて配置)
 setMarkerPosition(colorWheelCanvas.width * 0.86, colorWheelCanvas.height * 0.5);
-updateColorPreview();
+recomputeColor();
+
+// ---- パレットタブ ----
+PALETTE_COLORS.forEach(hex => {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'palette-swatch';
+  btn.style.background = hex;
+  btn.dataset.hex = hex;
+  btn.addEventListener('click', () => {
+    const [r, g, b] = hexToRgb(hex);
+    const [h, s, v] = rgbToHsv(r, g, b);
+    doodleHue = h; doodleSat = s; doodleValue = Math.max(v, 0.04);
+    doodleBrightnessSlider.value = Math.round(doodleValue * 100);
+    doodleTool = 'pen';
+    const cx = colorWheelCanvas.width / 2, cy = colorWheelCanvas.height / 2, radius = colorWheelCanvas.width / 2;
+    const rad = (h * Math.PI) / 180;
+    setMarkerPosition(cx + Math.cos(rad) * s * radius, cy + Math.sin(rad) * s * radius);
+    recomputeColor();
+    updateToolUI();
+  });
+  paletteGrid.appendChild(btn);
+});
+
+function updatePaletteActiveState() {
+  [...paletteGrid.children].forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.hex.toLowerCase() === doodleColor.toLowerCase());
+  });
+}
+
+// ---- 図形(ペン先)タブ ----
+SHAPE_OPTIONS.forEach(opt => {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'option-btn' + (opt.id === doodleShape ? ' active' : '');
+  btn.innerHTML = `${opt.icon}<span>${opt.label}</span>`;
+  btn.addEventListener('click', () => {
+    doodleShape = opt.id;
+    [...shapeOptionsBox.children].forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+  shapeOptionsBox.appendChild(btn);
+});
+
+// ---- ペン質タブ ----
+QUALITY_OPTIONS.forEach(opt => {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'option-btn' + (opt.id === doodleQuality ? ' active' : '');
+  btn.innerHTML = `${opt.icon}<span>${opt.label}</span>`;
+  btn.addEventListener('click', () => {
+    doodleQuality = opt.id;
+    [...qualityOptionsBox.children].forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+  qualityOptionsBox.appendChild(btn);
+});
+
+// ---- タブ切り替え ----
+toolTabsBox.querySelectorAll('.tool-tab-btn').forEach(tabBtn => {
+  tabBtn.addEventListener('click', () => {
+    const target = tabBtn.dataset.tab;
+    toolTabsBox.querySelectorAll('.tool-tab-btn').forEach(b => b.classList.toggle('active', b === tabBtn));
+    document.querySelectorAll('.tool-panel').forEach(panel => {
+      panel.classList.toggle('hidden', panel.dataset.panel !== target);
+    });
+  });
+});
 
 function updateToolUI() {
   btnEraser.classList.toggle('active', doodleTool === 'eraser');
@@ -181,25 +298,67 @@ function doodlePos(e) {
   return { x: point.clientX - rect.left, y: point.clientY - rect.top };
 }
 
-function strokeSegment(x0, y0, x1, y1, tool, color, size, alpha) {
-  doodleCtx.lineCap = 'round';
-  doodleCtx.lineJoin = 'round';
+// 実際の線を描く処理。落書きcanvas(自分・共有分)と結果画面の再現の両方から呼ばれる共通関数
+function drawStrokeOnContext(ctx, x0, y0, x1, y1, seg) {
+  const tool = seg.tool === 'eraser' ? 'eraser' : 'pen';
+  const shape = seg.shape === 'square' ? 'square' : 'round';
+  const quality = seg.quality || 'solid';
+  const alpha = typeof seg.alpha === 'number' ? seg.alpha : 1;
+  const size = seg.size || 4;
+
   if (tool === 'eraser') {
-    doodleCtx.globalCompositeOperation = 'destination-out';
-    doodleCtx.globalAlpha = 1;
-    doodleCtx.lineWidth = size * 2.2;
-  } else {
-    doodleCtx.globalCompositeOperation = 'source-over';
-    doodleCtx.globalAlpha = typeof alpha === 'number' ? alpha : 1;
-    doodleCtx.strokeStyle = color;
-    doodleCtx.lineWidth = size;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = size * 2.2;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    return;
   }
-  doodleCtx.beginPath();
-  doodleCtx.moveTo(x0, y0);
-  doodleCtx.lineTo(x1, y1);
-  doodleCtx.stroke();
-  doodleCtx.globalCompositeOperation = 'source-over';
-  doodleCtx.globalAlpha = 1;
+
+  ctx.lineCap = shape === 'square' ? 'square' : 'round';
+  ctx.lineJoin = shape === 'square' ? 'miter' : 'round';
+  ctx.strokeStyle = seg.color;
+
+  if (quality === 'marker') {
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.globalAlpha = Math.min(1, alpha * 0.8);
+    ctx.lineWidth = size * 1.8;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+  } else if (quality === 'chalk') {
+    ctx.globalCompositeOperation = 'source-over';
+    const passes = 3;
+    for (let i = 0; i < passes; i++) {
+      const jitter = size * 0.35;
+      const jx = (Math.random() - 0.5) * jitter;
+      const jy = (Math.random() - 0.5) * jitter;
+      ctx.globalAlpha = alpha * (0.3 + Math.random() * 0.3);
+      ctx.lineWidth = size * (0.6 + Math.random() * 0.5);
+      ctx.beginPath();
+      ctx.moveTo(x0 + jx, y0 + jy);
+      ctx.lineTo(x1 + jx, y1 + jy);
+      ctx.stroke();
+    }
+  } else {
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = alpha;
+    ctx.lineWidth = size;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+  }
+
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
 }
 
 function doodleStart(e) {
@@ -212,15 +371,18 @@ function doodleMove(e) {
   if (!doodleDrawing) return;
   const p = doodlePos(e);
   const prev = doodleLastPoint;
-  const alpha = doodleOpacity / 100;
-  strokeSegment(prev.x, prev.y, p.x, p.y, doodleTool, doodleColor, doodleSize, alpha);
+  const seg = {
+    tool: doodleTool, color: doodleColor, size: doodleSize,
+    alpha: doodleOpacity / 100, shape: doodleShape, quality: doodleQuality
+  };
+  drawStrokeOnContext(doodleCtx, prev.x, prev.y, p.x, p.y, seg);
   doodleLastPoint = p;
 
   // 正規化座標(0〜1)にして他プレイヤーへ送信(画面サイズが違っても対応できるように)
   const w = doodleCanvas.width, h = doodleCanvas.height;
   socket.emit('doodle_draw', {
     x0: prev.x / w, y0: prev.y / h, x1: p.x / w, y1: p.y / h,
-    tool: doodleTool, color: doodleColor, size: doodleSize, alpha
+    ...seg
   });
   e.preventDefault();
 }
@@ -240,7 +402,7 @@ doodleCanvas.addEventListener('touchend', doodleEnd);
 // 他プレイヤーが描いた線を自分の画面にも反映
 socket.on('doodle_draw', (seg) => {
   const w = doodleCanvas.width, h = doodleCanvas.height;
-  strokeSegment(seg.x0 * w, seg.y0 * h, seg.x1 * w, seg.y1 * h, seg.tool, seg.color, seg.size, seg.alpha);
+  drawStrokeOnContext(doodleCtx, seg.x0 * w, seg.y0 * h, seg.x1 * w, seg.y1 * h, seg);
 });
 
 answerImg.addEventListener('load', resizeDoodleCanvas);
@@ -750,24 +912,7 @@ function renderResult(state) {
     resultDoodleCanvas.width = 160;
     resultDoodleCanvas.height = 212;
     state.round.doodleSegments.forEach(seg => {
-      rCtx.lineCap = 'round';
-      rCtx.lineJoin = 'round';
-      if (seg.tool === 'eraser') {
-        rCtx.globalCompositeOperation = 'destination-out';
-        rCtx.globalAlpha = 1;
-        rCtx.lineWidth = seg.size * 2.2;
-      } else {
-        rCtx.globalCompositeOperation = 'source-over';
-        rCtx.globalAlpha = typeof seg.alpha === 'number' ? seg.alpha : 1;
-        rCtx.strokeStyle = seg.color;
-        rCtx.lineWidth = seg.size;
-      }
-      rCtx.beginPath();
-      rCtx.moveTo(seg.x0 * 160, seg.y0 * 212);
-      rCtx.lineTo(seg.x1 * 160, seg.y1 * 212);
-      rCtx.stroke();
-      rCtx.globalCompositeOperation = 'source-over';
-      rCtx.globalAlpha = 1;
+      drawStrokeOnContext(rCtx, seg.x0 * 160, seg.y0 * 212, seg.x1 * 160, seg.y1 * 212, seg);
     });
   }
 
