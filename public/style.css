@@ -443,15 +443,39 @@ input[type="text"]:focus { border-color: var(--amber); }
 
 .stamp-bar {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
   margin-top: 14px;
+}
+.stamp-toggle-btn {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--paper-2);
+  background: #fffdf6;
+  cursor: pointer;
+}
+.stamp-toggle-btn:hover { background: var(--amber); color: #fff; }
+
+.stamp-panel {
+  margin-top: 10px;
+  background: #fffdf6;
+  border: 1px solid var(--paper-2);
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.12);
+}
+.stamp-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: 198px;
 }
 .stamp-btn {
   font-size: 22px;
   line-height: 1;
-  padding: 8px 10px;
+  padding: 4px;
   border-radius: 6px;
   border: 1px solid var(--paper-2);
   background: #fffdf6;
@@ -460,7 +484,26 @@ input[type="text"]:focus { border-color: var(--amber); }
 }
 .stamp-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
 .stamp-btn:active { transform: translateY(0); }
-.stamp-btn img { width: 26px; height: 26px; object-fit: contain; display: block; }
+.stamp-btn img { width: 56px; height: 56px; object-fit: cover; border-radius: 4px; display: block; }
+
+.stamp-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+.stamp-nav-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--paper-2);
+  background: #fffdf6;
+  cursor: pointer;
+  font-size: 13px;
+}
+.stamp-nav-btn:disabled { opacity: 0.3; cursor: default; }
+.stamp-page-label { font-size: 12px; color: var(--ink-soft); min-width: 40px; text-align: center; }
 
 .stamp-toast-area {
   position: fixed;

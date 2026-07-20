@@ -21,18 +21,10 @@ let latestState = null;
 const draftTexts = {};
 
 // スタンプの中身をここで定義。絵文字でも画像でもOK。
-// 画像にする場合は public/images/stamps/ にファイルを置いて
-// { type: 'image', value: '/images/stamps/ファイル名.png' } と書くだけ
-const STAMP_ITEMS = [
-  { type: 'emoji', value: '👀' },
-  { type: 'emoji', value: '🤔' },
-  { type: 'emoji', value: '😂' },
-  { type: 'emoji', value: '🔥' },
-  { type: 'emoji', value: '👍' },
-  { type: 'emoji', value: '😅' },
-  { type: 'emoji', value: '🤫' },
-  { type: 'emoji', value: '❤️' },
-];
+const STAMP_ITEMS = Array.from({ length: 32 }, (_, i) => ({
+  type: 'image',
+  value: `/images/stamps/${String(i + 1).padStart(2, '0')}.png`
+}));
 
 // ---------- 落書き機能(人物写真へのみんなで共有らくがき) ----------
 const doodleCanvas = document.getElementById('doodleCanvas');
@@ -309,22 +301,83 @@ document.getElementById('btnPlayAgain').addEventListener('click', () => {
 });
 
 // ---------- スタンプ機能 ----------
+const STAMP_PER_PAGE = 9;
+
 function buildStampBar(container) {
   container.innerHTML = '';
-  STAMP_ITEMS.forEach(item => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'stamp-btn';
-    if (item.type === 'image') {
-      btn.innerHTML = `<img src="${item.value}" alt="スタンプ">`;
-    } else {
-      btn.textContent = item.value;
-    }
-    btn.addEventListener('click', () => {
-      socket.emit('send_stamp', { type: item.type, value: item.value });
+
+  const totalPages = Math.max(1, Math.ceil(STAMP_ITEMS.length / STAMP_PER_PAGE));
+  let page = 0;
+  let open = false;
+
+  const toggleBtn = document.createElement('button');
+  toggleBtn.type = 'button';
+  toggleBtn.className = 'stamp-toggle-btn';
+  toggleBtn.textContent = '😀 スタンプを送る';
+
+  const panel = document.createElement('div');
+  panel.className = 'stamp-panel hidden';
+
+  const grid = document.createElement('div');
+  grid.className = 'stamp-grid';
+
+  const nav = document.createElement('div');
+  nav.className = 'stamp-nav';
+  const prevBtn = document.createElement('button');
+  prevBtn.type = 'button';
+  prevBtn.className = 'stamp-nav-btn';
+  prevBtn.textContent = '◀';
+  const pageLabel = document.createElement('span');
+  pageLabel.className = 'stamp-page-label';
+  const nextBtn = document.createElement('button');
+  nextBtn.type = 'button';
+  nextBtn.className = 'stamp-nav-btn';
+  nextBtn.textContent = '▶';
+
+  function renderPage() {
+    grid.innerHTML = '';
+    const start = page * STAMP_PER_PAGE;
+    STAMP_ITEMS.slice(start, start + STAMP_PER_PAGE).forEach(item => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'stamp-btn';
+      if (item.type === 'image') {
+        btn.innerHTML = `<img src="${item.value}" alt="スタンプ">`;
+      } else {
+        btn.textContent = item.value;
+      }
+      btn.addEventListener('click', () => {
+        socket.emit('send_stamp', { type: item.type, value: item.value });
+        panel.classList.add('hidden');
+        open = false;
+      });
+      grid.appendChild(btn);
     });
-    container.appendChild(btn);
+    pageLabel.textContent = `${page + 1} / ${totalPages}`;
+    prevBtn.disabled = page === 0;
+    nextBtn.disabled = page === totalPages - 1;
+  }
+
+  prevBtn.addEventListener('click', () => {
+    if (page > 0) { page--; renderPage(); }
   });
+  nextBtn.addEventListener('click', () => {
+    if (page < totalPages - 1) { page++; renderPage(); }
+  });
+  toggleBtn.addEventListener('click', () => {
+    open = !open;
+    panel.classList.toggle('hidden', !open);
+  });
+
+  nav.appendChild(prevBtn);
+  nav.appendChild(pageLabel);
+  nav.appendChild(nextBtn);
+  panel.appendChild(grid);
+  panel.appendChild(nav);
+  container.appendChild(toggleBtn);
+  container.appendChild(panel);
+
+  renderPage();
 }
 
 socket.on('stamp_broadcast', ({ playerName, type, value }) => {
