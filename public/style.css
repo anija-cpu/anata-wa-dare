@@ -335,6 +335,8 @@ input[type="text"]:focus { border-color: var(--amber); }
   box-shadow: 0 8px 18px rgba(0,0,0,0.35);
 }
 .result-slot { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.result-photo-wrap { position: relative; display: inline-block; }
+.result-doodle-canvas { position: absolute; top: 8px; left: 8px; width: 160px; height: 212px; pointer-events: none; }
 .result-label { font-size: 13px; font-weight: 700; }
 .result-label.correct { color: var(--good); }
 .result-label.wrong { color: var(--bad); }

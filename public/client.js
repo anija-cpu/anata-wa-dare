@@ -569,7 +569,10 @@ function renderResult(state) {
     reveal.innerHTML = answer ? `
       <div class="result-slot">
         <div class="result-label correct">親が選んだ写真＝正解</div>
-        <img src="${answer.url}">
+        <div class="result-photo-wrap">
+          <img src="${answer.url}">
+          <canvas id="resultDoodleCanvas" class="result-doodle-canvas"></canvas>
+        </div>
       </div>` : '';
   } else {
     reveal.innerHTML = `
@@ -579,8 +582,36 @@ function renderResult(state) {
       </div>
       <div class="result-slot">
         <div class="result-label correct">正解</div>
-        ${answer ? `<img src="${answer.url}">` : ''}
+        <div class="result-photo-wrap">
+          ${answer ? `<img src="${answer.url}">` : ''}
+          <canvas id="resultDoodleCanvas" class="result-doodle-canvas"></canvas>
+        </div>
       </div>`;
+  }
+
+  // みんなが記入中に描いた落書きを、正解写真の上に再現する
+  const resultDoodleCanvas = document.getElementById('resultDoodleCanvas');
+  if (resultDoodleCanvas && state.round.doodleSegments) {
+    const rCtx = resultDoodleCanvas.getContext('2d');
+    resultDoodleCanvas.width = 160;
+    resultDoodleCanvas.height = 212;
+    state.round.doodleSegments.forEach(seg => {
+      rCtx.lineCap = 'round';
+      rCtx.lineJoin = 'round';
+      if (seg.tool === 'eraser') {
+        rCtx.globalCompositeOperation = 'destination-out';
+        rCtx.lineWidth = seg.size * 2.2;
+      } else {
+        rCtx.globalCompositeOperation = 'source-over';
+        rCtx.strokeStyle = seg.color;
+        rCtx.lineWidth = seg.size;
+      }
+      rCtx.beginPath();
+      rCtx.moveTo(seg.x0 * 160, seg.y0 * 212);
+      rCtx.lineTo(seg.x1 * 160, seg.y1 * 212);
+      rCtx.stroke();
+      rCtx.globalCompositeOperation = 'source-over';
+    });
   }
 
   document.getElementById('lifeStatus').textContent = `残りライフ：${lifeHearts(state.life)}`;

@@ -128,7 +128,8 @@ function startRound(room) {
     assignments,
     numCandidates: numCandidatesFor(playerCount),
     candidates: null,
-    guess: null
+    guess: null,
+    doodleSegments: []
   };
   room.phase = 'writing';
 }
@@ -171,7 +172,8 @@ function roundViewFor(room, socketId) {
     candidates: round.candidates
       ? round.candidates.map(c => ({ id: c.id, url: c.url, isAnswer: isParent ? undefined : c.isAnswer }))
       : null,
-    guess: round.guess
+    guess: round.guess,
+    doodleSegments: room.phase === 'round_result' ? round.doodleSegments : undefined
   };
 }
 
@@ -295,11 +297,18 @@ io.on('connection', (socket) => {
     const tool = seg.tool === 'eraser' ? 'eraser' : 'pen';
     const color = typeof seg.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(seg.color) ? seg.color : '#c1443c';
     const size = typeof seg.size === 'number' && isFinite(seg.size) ? Math.max(1, Math.min(30, seg.size)) : 4;
+    const segment = { x0, y0, x1, y1, tool, color, size };
+
+    // 結果発表画面で再現できるよう、ラウンド内の落書き履歴として保存(上限を設けてメモリ膨張を防ぐ)
+    room.round.doodleSegments.push(segment);
+    if (room.round.doodleSegments.length > 4000) {
+      room.round.doodleSegments.shift();
+    }
 
     // 自分以外の同ラウンドの子プレイヤーへ中継(自分の画面は送信元ですでに描画済み)
     room.round.childIds.forEach(childId => {
       if (childId === socket.id) return;
-      io.to(childId).emit('doodle_draw', { x0, y0, x1, y1, tool, color, size });
+      io.to(childId).emit('doodle_draw', segment);
     });
   });
 
