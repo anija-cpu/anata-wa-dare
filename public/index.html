@@ -83,7 +83,12 @@
           <canvas id="doodleCanvas" class="doodle-canvas"></canvas>
         </div>
       </div>
-      <button id="btnClearDoodle" type="button" class="btn btn-outline btn-small">🧽 らくがきを消す</button>
+      <div class="doodle-toolbar">
+        <div id="doodleColors" class="doodle-colors"></div>
+        <input id="doodleSize" type="range" min="2" max="16" value="4" class="doodle-size-slider" title="ペンの太さ">
+        <button id="btnEraser" type="button" class="tool-btn" title="消しゴム">🧹</button>
+      </div>
+      <p class="hint doodle-hint">みんなで同じ写真に落書きできます（記入が終わった人だけでなくてもOK）</p>
       <div id="promptList" class="prompt-list"></div>
       <p id="writingProgress" class="writing-progress"></p>
       <p class="hint">親プレイヤーは今、目を閉じて待っています。見た目だけで自由に妄想してOK！</p>

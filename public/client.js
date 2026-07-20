@@ -34,12 +34,53 @@ const STAMP_ITEMS = [
   { type: 'emoji', value: '❤️' },
 ];
 
-// ---------- 落書き機能(人物写真への一時的ならくがき) ----------
+// ---------- 落書き機能(人物写真へのみんなで共有らくがき) ----------
 const doodleCanvas = document.getElementById('doodleCanvas');
 const doodleCtx = doodleCanvas.getContext('2d');
 const answerImg = document.getElementById('answerImg');
+const doodleColorsBox = document.getElementById('doodleColors');
+const doodleSizeSlider = document.getElementById('doodleSize');
+const btnEraser = document.getElementById('btnEraser');
+
+const DOODLE_COLORS = ['#2a2118', '#c1443c', '#e8a33d', '#4c7a4a', '#3b6ea5', '#7d5ba6', '#ffffff'];
+
 let doodleDrawing = false;
 let lastDoodleRoundKey = null;
+let doodleLastPoint = null;
+let doodleColor = DOODLE_COLORS[1];
+let doodleSize = 4;
+let doodleTool = 'pen'; // 'pen' | 'eraser'
+
+// カラーパレットを生成
+DOODLE_COLORS.forEach((color, i) => {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'doodle-color-btn';
+  btn.style.background = color;
+  if (i === 1) btn.classList.add('active');
+  btn.addEventListener('click', () => {
+    doodleColor = color;
+    doodleTool = 'pen';
+    updateDoodleToolUI();
+  });
+  doodleColorsBox.appendChild(btn);
+});
+
+function updateDoodleToolUI() {
+  [...doodleColorsBox.children].forEach((btn, i) => {
+    btn.classList.toggle('active', doodleTool === 'pen' && DOODLE_COLORS[i] === doodleColor);
+  });
+  btnEraser.classList.toggle('active', doodleTool === 'eraser');
+}
+
+doodleSizeSlider.addEventListener('input', () => {
+  doodleSize = +doodleSizeSlider.value;
+});
+
+btnEraser.addEventListener('click', () => {
+  doodleTool = doodleTool === 'eraser' ? 'pen' : 'eraser';
+  updateDoodleToolUI();
+});
 
 function resizeDoodleCanvas() {
   const rect = answerImg.getBoundingClientRect();
@@ -57,27 +98,49 @@ function doodlePos(e) {
   return { x: point.clientX - rect.left, y: point.clientY - rect.top };
 }
 
+function strokeSegment(x0, y0, x1, y1, tool, color, size) {
+  doodleCtx.lineCap = 'round';
+  doodleCtx.lineJoin = 'round';
+  if (tool === 'eraser') {
+    doodleCtx.globalCompositeOperation = 'destination-out';
+    doodleCtx.lineWidth = size * 2.2;
+  } else {
+    doodleCtx.globalCompositeOperation = 'source-over';
+    doodleCtx.strokeStyle = color;
+    doodleCtx.lineWidth = size;
+  }
+  doodleCtx.beginPath();
+  doodleCtx.moveTo(x0, y0);
+  doodleCtx.lineTo(x1, y1);
+  doodleCtx.stroke();
+  doodleCtx.globalCompositeOperation = 'source-over';
+}
+
 function doodleStart(e) {
   doodleDrawing = true;
-  const p = doodlePos(e);
-  doodleCtx.beginPath();
-  doodleCtx.moveTo(p.x, p.y);
+  doodleLastPoint = doodlePos(e);
   e.preventDefault();
 }
 
 function doodleMove(e) {
   if (!doodleDrawing) return;
   const p = doodlePos(e);
-  doodleCtx.lineWidth = 3;
-  doodleCtx.lineCap = 'round';
-  doodleCtx.strokeStyle = '#c1443c';
-  doodleCtx.lineTo(p.x, p.y);
-  doodleCtx.stroke();
+  const prev = doodleLastPoint;
+  strokeSegment(prev.x, prev.y, p.x, p.y, doodleTool, doodleColor, doodleSize);
+  doodleLastPoint = p;
+
+  // 正規化座標(0〜1)にして他プレイヤーへ送信(画面サイズが違っても対応できるように)
+  const w = doodleCanvas.width, h = doodleCanvas.height;
+  socket.emit('doodle_draw', {
+    x0: prev.x / w, y0: prev.y / h, x1: p.x / w, y1: p.y / h,
+    tool: doodleTool, color: doodleColor, size: doodleSize
+  });
   e.preventDefault();
 }
 
 function doodleEnd() {
   doodleDrawing = false;
+  doodleLastPoint = null;
 }
 
 doodleCanvas.addEventListener('mousedown', doodleStart);
@@ -87,7 +150,12 @@ doodleCanvas.addEventListener('touchstart', doodleStart, { passive: false });
 doodleCanvas.addEventListener('touchmove', doodleMove, { passive: false });
 doodleCanvas.addEventListener('touchend', doodleEnd);
 
-document.getElementById('btnClearDoodle').addEventListener('click', clearDoodle);
+// 他プレイヤーが描いた線を自分の画面にも反映
+socket.on('doodle_draw', (seg) => {
+  const w = doodleCanvas.width, h = doodleCanvas.height;
+  strokeSegment(seg.x0 * w, seg.y0 * h, seg.x1 * w, seg.y1 * h, seg.tool, seg.color, seg.size);
+});
+
 answerImg.addEventListener('load', resizeDoodleCanvas);
 window.addEventListener('resize', resizeDoodleCanvas);
 

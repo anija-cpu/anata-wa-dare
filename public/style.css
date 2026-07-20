@@ -234,6 +234,37 @@ input[type="text"]:focus { border-color: var(--amber); }
   font-size: 13px;
 }
 
+.doodle-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.doodle-colors { display: flex; gap: 6px; }
+.doodle-color-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid rgba(0,0,0,0.15);
+  cursor: pointer;
+  padding: 0;
+}
+.doodle-color-btn.active { border-color: var(--ink); box-shadow: 0 0 0 2px var(--amber); }
+.doodle-size-slider { width: 90px; accent-color: var(--pin); cursor: pointer; }
+.tool-btn {
+  background: #fffdf6;
+  border: 1px solid var(--paper-2);
+  border-radius: 6px;
+  width: 34px;
+  height: 34px;
+  font-size: 16px;
+  cursor: pointer;
+}
+.tool-btn.active { background: var(--amber); border-color: var(--amber-deep); }
+.doodle-hint { text-align: center; margin-top: 8px; }
+
 .prompt-list { display: flex; flex-direction: column; gap: 14px; margin-top: 18px; }
 .prompt-item {
   background: #fffdf6;

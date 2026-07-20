@@ -281,6 +281,28 @@ io.on('connection', (socket) => {
     io.to(room.code).emit('stamp_broadcast', { playerName: player.name, type: safeType, value: safeValue });
   });
 
+  // 共有らくがき: 記入フェーズの子プレイヤー同士でリアルタイム共有する
+  socket.on('doodle_draw', (seg) => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room || !room.round || room.phase !== 'writing') return;
+    if (!room.round.childIds.includes(socket.id)) return;
+    if (!seg || typeof seg !== 'object') return;
+
+    const num = (v) => (typeof v === 'number' && isFinite(v) ? Math.max(0, Math.min(1, v)) : null);
+    const x0 = num(seg.x0), y0 = num(seg.y0), x1 = num(seg.x1), y1 = num(seg.y1);
+    if (x0 === null || y0 === null || x1 === null || y1 === null) return;
+
+    const tool = seg.tool === 'eraser' ? 'eraser' : 'pen';
+    const color = typeof seg.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(seg.color) ? seg.color : '#c1443c';
+    const size = typeof seg.size === 'number' && isFinite(seg.size) ? Math.max(1, Math.min(30, seg.size)) : 4;
+
+    // 自分以外の同ラウンドの子プレイヤーへ中継(自分の画面は送信元ですでに描画済み)
+    room.round.childIds.forEach(childId => {
+      if (childId === socket.id) return;
+      io.to(childId).emit('doodle_draw', { x0, y0, x1, y1, tool, color, size });
+    });
+  });
+
   socket.on('submit_guess', ({ cardId }) => {
     const room = rooms.get(socket.data.roomCode);
     if (!room || !room.round || room.phase !== 'reveal') return;
