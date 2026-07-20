@@ -316,7 +316,7 @@ function buildStampBar(container) {
   const toggleBtn = document.createElement('button');
   toggleBtn.type = 'button';
   toggleBtn.className = 'stamp-toggle-btn';
-  toggleBtn.textContent = '😀 スタンプを送る';
+  toggleBtn.textContent = 'スタンプ';
 
   const panel = document.createElement('div');
   panel.className = 'stamp-panel hidden';
@@ -386,17 +386,25 @@ function buildStampBar(container) {
 // スタンプはいつでも(どの画面でも)送れるよう、1つのグローバルボタンとして初期化
 buildStampBar(document.getElementById('floatingStampBar'));
 
+let nextStampSide = 'left';
+
 socket.on('stamp_broadcast', ({ playerName, type, value }) => {
-  const area = document.getElementById('stampToastArea');
+  const side = nextStampSide;
+  nextStampSide = nextStampSide === 'left' ? 'right' : 'left';
+  const area = document.getElementById(side === 'left' ? 'stampSideLeft' : 'stampSideRight');
   if (!area) return;
-  const toast = document.createElement('div');
-  toast.className = 'stamp-toast';
-  const content = type === 'image'
-    ? `<img class="stamp-toast-image" src="${value}" alt="スタンプ">`
-    : `<span class="stamp-toast-emoji">${value}</span>`;
-  toast.innerHTML = `${content}<span class="stamp-toast-name">${playerName}</span>`;
-  area.appendChild(toast);
-  setTimeout(() => toast.remove(), 2600);
+
+  const el = document.createElement(type === 'image' ? 'img' : 'div');
+  el.className = 'stamp-side-item';
+  if (type === 'image') {
+    el.src = value;
+    el.alt = 'スタンプ';
+  } else {
+    el.textContent = value;
+    el.classList.add('stamp-side-emoji');
+  }
+  area.appendChild(el);
+  setTimeout(() => el.remove(), 2400);
 });
 
 // ---------- メイン描画 ----------
