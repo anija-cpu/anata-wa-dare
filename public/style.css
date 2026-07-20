@@ -205,13 +205,33 @@ input[type="text"]:focus { border-color: var(--amber); }
 .player-pins li.disconnected { opacity: 0.4; text-decoration: line-through; }
 
 .person-spot { display: flex; justify-content: center; margin: 16px 0; }
+.doodle-wrap {
+  position: relative;
+  display: inline-block;
+  transform: rotate(-1.5deg);
+}
 .person-photo {
+  display: block;
   width: 200px;
   height: 266px;
   object-fit: cover;
   border: 8px solid #fffdf6;
   box-shadow: 0 8px 18px rgba(0,0,0,0.35);
-  transform: rotate(-1.5deg);
+}
+.doodle-canvas {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 200px;
+  height: 266px;
+  cursor: crosshair;
+  touch-action: none;
+}
+.btn-small {
+  display: block;
+  margin: 4px auto 0;
+  padding: 8px 16px;
+  font-size: 13px;
 }
 
 .prompt-list { display: flex; flex-direction: column; gap: 14px; margin-top: 18px; }
@@ -407,6 +427,7 @@ input[type="text"]:focus { border-color: var(--amber); }
 }
 .stamp-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
 .stamp-btn:active { transform: translateY(0); }
+.stamp-btn img { width: 26px; height: 26px; object-fit: contain; display: block; }
 
 .stamp-toast-area {
   position: fixed;
@@ -435,6 +456,7 @@ input[type="text"]:focus { border-color: var(--amber); }
 }
 .stamp-toast.fade-out { opacity: 0; transform: translateY(-8px); }
 .stamp-toast-emoji { font-size: 22px; }
+.stamp-toast-image { width: 26px; height: 26px; object-fit: contain; }
 .stamp-toast-name { font-weight: 700; color: var(--amber); }
 
 @keyframes stamp-in {

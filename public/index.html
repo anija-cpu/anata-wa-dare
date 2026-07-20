@@ -78,8 +78,12 @@
       <p class="eyebrow" id="writingRoundLabel"></p>
       <h2>この人物、あなたの直感で語ってください</h2>
       <div class="person-spot">
-        <img id="answerImg" class="person-photo" src="" alt="お題の人物">
+        <div class="doodle-wrap">
+          <img id="answerImg" class="person-photo" src="" alt="お題の人物">
+          <canvas id="doodleCanvas" class="doodle-canvas"></canvas>
+        </div>
       </div>
+      <button id="btnClearDoodle" type="button" class="btn btn-outline btn-small">🧽 らくがきを消す</button>
       <div id="promptList" class="prompt-list"></div>
       <p id="writingProgress" class="writing-progress"></p>
       <p class="hint">親プレイヤーは今、目を閉じて待っています。見た目だけで自由に妄想してOK！</p>

@@ -20,7 +20,76 @@ let latestState = null;
 // 記入中のテキストを一時保存(他プレイヤーの操作で再描画されても入力内容が消えないように)
 const draftTexts = {};
 
-const STAMP_EMOJIS = ['👀', '🤔', '😂', '🔥', '👍', '😅', '🤫', '❤️'];
+// スタンプの中身をここで定義。絵文字でも画像でもOK。
+// 画像にする場合は public/images/stamps/ にファイルを置いて
+// { type: 'image', value: '/images/stamps/ファイル名.png' } と書くだけ
+const STAMP_ITEMS = [
+  { type: 'emoji', value: '👀' },
+  { type: 'emoji', value: '🤔' },
+  { type: 'emoji', value: '😂' },
+  { type: 'emoji', value: '🔥' },
+  { type: 'emoji', value: '👍' },
+  { type: 'emoji', value: '😅' },
+  { type: 'emoji', value: '🤫' },
+  { type: 'emoji', value: '❤️' },
+];
+
+// ---------- 落書き機能(人物写真への一時的ならくがき) ----------
+const doodleCanvas = document.getElementById('doodleCanvas');
+const doodleCtx = doodleCanvas.getContext('2d');
+const answerImg = document.getElementById('answerImg');
+let doodleDrawing = false;
+let lastDoodleRoundKey = null;
+
+function resizeDoodleCanvas() {
+  const rect = answerImg.getBoundingClientRect();
+  doodleCanvas.width = rect.width || 200;
+  doodleCanvas.height = rect.height || 266;
+}
+
+function clearDoodle() {
+  doodleCtx.clearRect(0, 0, doodleCanvas.width, doodleCanvas.height);
+}
+
+function doodlePos(e) {
+  const rect = doodleCanvas.getBoundingClientRect();
+  const point = e.touches ? e.touches[0] : e;
+  return { x: point.clientX - rect.left, y: point.clientY - rect.top };
+}
+
+function doodleStart(e) {
+  doodleDrawing = true;
+  const p = doodlePos(e);
+  doodleCtx.beginPath();
+  doodleCtx.moveTo(p.x, p.y);
+  e.preventDefault();
+}
+
+function doodleMove(e) {
+  if (!doodleDrawing) return;
+  const p = doodlePos(e);
+  doodleCtx.lineWidth = 3;
+  doodleCtx.lineCap = 'round';
+  doodleCtx.strokeStyle = '#c1443c';
+  doodleCtx.lineTo(p.x, p.y);
+  doodleCtx.stroke();
+  e.preventDefault();
+}
+
+function doodleEnd() {
+  doodleDrawing = false;
+}
+
+doodleCanvas.addEventListener('mousedown', doodleStart);
+doodleCanvas.addEventListener('mousemove', doodleMove);
+window.addEventListener('mouseup', doodleEnd);
+doodleCanvas.addEventListener('touchstart', doodleStart, { passive: false });
+doodleCanvas.addEventListener('touchmove', doodleMove, { passive: false });
+doodleCanvas.addEventListener('touchend', doodleEnd);
+
+document.getElementById('btnClearDoodle').addEventListener('click', clearDoodle);
+answerImg.addEventListener('load', resizeDoodleCanvas);
+window.addEventListener('resize', resizeDoodleCanvas);
 
 // ---------- BGM ----------
 const bgmAudio = document.getElementById('bgmAudio');
@@ -30,9 +99,34 @@ const btnVolUp = document.getElementById('btnVolUp');
 const volumeSlider = document.getElementById('volumeSlider');
 const volumeLabel = document.getElementById('volumeLabel');
 
-let volume = 35; // 0-100
+const BGM_STORAGE_KEY = 'anataWaDare_bgm';
+
+function loadBgmSettings() {
+  try {
+    const raw = localStorage.getItem(BGM_STORAGE_KEY);
+    if (!raw) return { volume: 35, muted: false };
+    const parsed = JSON.parse(raw);
+    return {
+      volume: typeof parsed.volume === 'number' ? parsed.volume : 35,
+      muted: !!parsed.muted
+    };
+  } catch (e) {
+    return { volume: 35, muted: false };
+  }
+}
+
+function saveBgmSettings() {
+  try {
+    localStorage.setItem(BGM_STORAGE_KEY, JSON.stringify({ volume, muted: userMuted }));
+  } catch (e) {
+    // localStorageが使えない環境では保存をあきらめる
+  }
+}
+
+const savedBgm = loadBgmSettings();
+let volume = savedBgm.volume; // 0-100
+let userMuted = savedBgm.muted;
 let bgmStarted = false;
-let userMuted = false;
 
 function applyVolume() {
   bgmAudio.volume = volume / 100;
@@ -43,9 +137,13 @@ function applyVolume() {
 function setVolume(v) {
   volume = Math.max(0, Math.min(100, Math.round(v)));
   applyVolume();
+  saveBgmSettings();
 }
 
 applyVolume();
+bgmAudio.muted = userMuted;
+btnMute.textContent = userMuted ? '🔇' : '🔊';
+btnMute.classList.toggle('is-muted', userMuted);
 
 volumeSlider.addEventListener('input', () => setVolume(+volumeSlider.value));
 btnVolDown.addEventListener('click', () => setVolume(volume - 1));
@@ -65,6 +163,7 @@ btnMute.addEventListener('click', () => {
   bgmAudio.muted = userMuted;
   btnMute.textContent = userMuted ? '🔇' : '🔊';
   btnMute.classList.toggle('is-muted', userMuted);
+  saveBgmSettings();
   if (!userMuted) tryStartBgm();
 });
 
@@ -144,24 +243,31 @@ document.getElementById('btnPlayAgain').addEventListener('click', () => {
 // ---------- スタンプ機能 ----------
 function buildStampBar(container) {
   container.innerHTML = '';
-  STAMP_EMOJIS.forEach(emoji => {
+  STAMP_ITEMS.forEach(item => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'stamp-btn';
-    btn.textContent = emoji;
+    if (item.type === 'image') {
+      btn.innerHTML = `<img src="${item.value}" alt="スタンプ">`;
+    } else {
+      btn.textContent = item.value;
+    }
     btn.addEventListener('click', () => {
-      socket.emit('send_stamp', { emoji });
+      socket.emit('send_stamp', { type: item.type, value: item.value });
     });
     container.appendChild(btn);
   });
 }
 
-socket.on('stamp_broadcast', ({ playerName, emoji }) => {
+socket.on('stamp_broadcast', ({ playerName, type, value }) => {
   const area = document.getElementById('stampToastArea');
   if (!area) return;
   const toast = document.createElement('div');
   toast.className = 'stamp-toast';
-  toast.innerHTML = `<span class="stamp-toast-emoji">${emoji}</span><span class="stamp-toast-name">${playerName}</span>`;
+  const content = type === 'image'
+    ? `<img class="stamp-toast-image" src="${value}" alt="スタンプ">`
+    : `<span class="stamp-toast-emoji">${value}</span>`;
+  toast.innerHTML = `${content}<span class="stamp-toast-name">${playerName}</span>`;
   area.appendChild(toast);
   setTimeout(() => toast.classList.add('fade-out'), 1800);
   setTimeout(() => toast.remove(), 2300);
@@ -262,6 +368,14 @@ function roundLabel(state) {
 function renderWritingChild(state) {
   document.getElementById('writingRoundLabel').textContent = roundLabel(state);
   document.getElementById('answerImg').src = state.round.answerCard ? state.round.answerCard.url : '';
+
+  // ラウンドが変わった時だけ、らくがきをリセットする(再描画のたびには消さない)
+  const doodleRoundKey = `${state.roundIndex}-${state.round.answerCard ? state.round.answerCard.id : ''}`;
+  if (doodleRoundKey !== lastDoodleRoundKey) {
+    lastDoodleRoundKey = doodleRoundKey;
+    resizeDoodleCanvas();
+    clearDoodle();
+  }
 
   const total = state.round.assignments.length;
   const submittedCount = state.round.assignments.filter(a => a.submitted).length;

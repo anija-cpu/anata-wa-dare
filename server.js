@@ -263,13 +263,22 @@ io.on('connection', (socket) => {
     broadcastState(room);
   });
 
-  socket.on('send_stamp', ({ emoji }) => {
+  socket.on('send_stamp', ({ type, value }) => {
     const room = rooms.get(socket.data.roomCode);
     if (!room) return;
     const player = room.players.find(p => p.id === socket.id);
     if (!player) return;
-    const safeEmoji = typeof emoji === 'string' ? emoji.slice(0, 4) : '👍';
-    io.to(room.code).emit('stamp_broadcast', { playerName: player.name, emoji: safeEmoji });
+
+    let safeType = 'emoji';
+    let safeValue = '👍';
+    if (type === 'image' && typeof value === 'string' && /^\/images\/stamps\/[\w\-.]+\.(png|jpg|jpeg|gif|webp)$/i.test(value)) {
+      safeType = 'image';
+      safeValue = value;
+    } else if (typeof value === 'string' && value.trim()) {
+      safeType = 'emoji';
+      safeValue = value.slice(0, 4);
+    }
+    io.to(room.code).emit('stamp_broadcast', { playerName: player.name, type: safeType, value: safeValue });
   });
 
   socket.on('submit_guess', ({ cardId }) => {
