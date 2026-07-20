@@ -30,48 +30,136 @@ const STAMP_ITEMS = Array.from({ length: 32 }, (_, i) => ({
 const doodleCanvas = document.getElementById('doodleCanvas');
 const doodleCtx = doodleCanvas.getContext('2d');
 const answerImg = document.getElementById('answerImg');
-const doodleColorsBox = document.getElementById('doodleColors');
+const colorWheelCanvas = document.getElementById('colorWheelCanvas');
+const colorWheelCtx = colorWheelCanvas.getContext('2d');
+const colorWheelMarker = document.getElementById('colorWheelMarker');
+const colorPreviewFill = document.getElementById('colorPreviewFill');
 const doodleSizeSlider = document.getElementById('doodleSize');
+const doodleOpacitySlider = document.getElementById('doodleOpacity');
 const btnEraser = document.getElementById('btnEraser');
-
-const DOODLE_COLORS = ['#2a2118', '#c1443c', '#e8a33d', '#4c7a4a', '#3b6ea5', '#7d5ba6', '#ffffff'];
 
 let doodleDrawing = false;
 let lastDoodleRoundKey = null;
 let doodleLastPoint = null;
-let doodleColor = DOODLE_COLORS[1];
+let doodleColor = '#c1443c';
 let doodleSize = 4;
+let doodleOpacity = 100; // 0-100
 let doodleTool = 'pen'; // 'pen' | 'eraser'
 
-// カラーパレットを生成
-DOODLE_COLORS.forEach((color, i) => {
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'doodle-color-btn';
-  btn.style.background = color;
-  if (i === 1) btn.classList.add('active');
-  btn.addEventListener('click', () => {
-    doodleColor = color;
-    doodleTool = 'pen';
-    updateDoodleToolUI();
-  });
-  doodleColorsBox.appendChild(btn);
-});
+function hsvToRgb(h, s, v) {
+  const c = v * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = v - c;
+  let r, g, b;
+  if (h < 60) { r = c; g = x; b = 0; }
+  else if (h < 120) { r = x; g = c; b = 0; }
+  else if (h < 180) { r = 0; g = c; b = x; }
+  else if (h < 240) { r = 0; g = x; b = c; }
+  else if (h < 300) { r = x; g = 0; b = c; }
+  else { r = c; g = 0; b = x; }
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
+}
 
-function updateDoodleToolUI() {
-  [...doodleColorsBox.children].forEach((btn, i) => {
-    btn.classList.toggle('active', doodleTool === 'pen' && DOODLE_COLORS[i] === doodleColor);
-  });
+function rgbToHex(r, g, b) {
+  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
+// カラーホイールを描画(角度=色相、中心からの距離=彩度)
+function buildColorWheel() {
+  const size = colorWheelCanvas.width;
+  const cx = size / 2, cy = size / 2, radius = size / 2;
+  const imageData = colorWheelCtx.createImageData(size, size);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const dx = x - cx, dy = y - cy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const idx = (y * size + x) * 4;
+      if (dist > radius) { imageData.data[idx + 3] = 0; continue; }
+      let angle = Math.atan2(dy, dx) * 180 / Math.PI;
+      if (angle < 0) angle += 360;
+      const sat = Math.min(dist / radius, 1);
+      const [r, g, b] = hsvToRgb(angle, sat, 1);
+      imageData.data[idx] = r;
+      imageData.data[idx + 1] = g;
+      imageData.data[idx + 2] = b;
+      imageData.data[idx + 3] = 255;
+    }
+  }
+  colorWheelCtx.putImageData(imageData, 0, 0);
+}
+buildColorWheel();
+
+function updateColorPreview() {
+  const hex = doodleColor;
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  colorPreviewFill.style.background = `rgba(${r}, ${g}, ${b}, ${doodleOpacity / 100})`;
+}
+
+function setMarkerPosition(x, y) {
+  const size = colorWheelCanvas.width;
+  colorWheelMarker.style.left = `${(x / size) * 100}%`;
+  colorWheelMarker.style.top = `${(y / size) * 100}%`;
+}
+
+function pickColorFromWheel(e) {
+  const rect = colorWheelCanvas.getBoundingClientRect();
+  const point = e.touches ? e.touches[0] : e;
+  const size = colorWheelCanvas.width;
+  const scaleX = size / rect.width;
+  const scaleY = size / rect.height;
+  let x = (point.clientX - rect.left) * scaleX;
+  let y = (point.clientY - rect.top) * scaleY;
+  const cx = size / 2, cy = size / 2, radius = size / 2;
+  let dx = x - cx, dy = y - cy;
+  let dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist > radius) {
+    // 円の外をクリックした場合は縁に丸める
+    dx = (dx / dist) * radius;
+    dy = (dy / dist) * radius;
+    dist = radius;
+    x = cx + dx;
+    y = cy + dy;
+  }
+  let angle = Math.atan2(dy, dx) * 180 / Math.PI;
+  if (angle < 0) angle += 360;
+  const sat = Math.min(dist / radius, 1);
+  const [r, g, b] = hsvToRgb(angle, sat, 1);
+  doodleColor = rgbToHex(r, g, b);
+  doodleTool = 'pen';
+  setMarkerPosition(x, y);
+  updateColorPreview();
+  updateToolUI();
+}
+
+let wheelDragging = false;
+colorWheelCanvas.addEventListener('mousedown', (e) => { wheelDragging = true; pickColorFromWheel(e); });
+window.addEventListener('mousemove', (e) => { if (wheelDragging) pickColorFromWheel(e); });
+window.addEventListener('mouseup', () => { wheelDragging = false; });
+colorWheelCanvas.addEventListener('touchstart', (e) => { wheelDragging = true; pickColorFromWheel(e); e.preventDefault(); }, { passive: false });
+colorWheelCanvas.addEventListener('touchmove', (e) => { if (wheelDragging) pickColorFromWheel(e); e.preventDefault(); }, { passive: false });
+colorWheelCanvas.addEventListener('touchend', () => { wheelDragging = false; });
+
+// 初期マーカー位置(初期カラーに合わせて縁の赤付近に配置)
+setMarkerPosition(colorWheelCanvas.width * 0.86, colorWheelCanvas.height * 0.5);
+updateColorPreview();
+
+function updateToolUI() {
   btnEraser.classList.toggle('active', doodleTool === 'eraser');
 }
 
 doodleSizeSlider.addEventListener('input', () => {
   doodleSize = +doodleSizeSlider.value;
 });
+doodleOpacitySlider.addEventListener('input', () => {
+  doodleOpacity = +doodleOpacitySlider.value;
+  updateColorPreview();
+});
 
 btnEraser.addEventListener('click', () => {
   doodleTool = doodleTool === 'eraser' ? 'pen' : 'eraser';
-  updateDoodleToolUI();
+  updateToolUI();
 });
 
 function resizeDoodleCanvas() {
@@ -93,14 +181,16 @@ function doodlePos(e) {
   return { x: point.clientX - rect.left, y: point.clientY - rect.top };
 }
 
-function strokeSegment(x0, y0, x1, y1, tool, color, size) {
+function strokeSegment(x0, y0, x1, y1, tool, color, size, alpha) {
   doodleCtx.lineCap = 'round';
   doodleCtx.lineJoin = 'round';
   if (tool === 'eraser') {
     doodleCtx.globalCompositeOperation = 'destination-out';
+    doodleCtx.globalAlpha = 1;
     doodleCtx.lineWidth = size * 2.2;
   } else {
     doodleCtx.globalCompositeOperation = 'source-over';
+    doodleCtx.globalAlpha = typeof alpha === 'number' ? alpha : 1;
     doodleCtx.strokeStyle = color;
     doodleCtx.lineWidth = size;
   }
@@ -109,6 +199,7 @@ function strokeSegment(x0, y0, x1, y1, tool, color, size) {
   doodleCtx.lineTo(x1, y1);
   doodleCtx.stroke();
   doodleCtx.globalCompositeOperation = 'source-over';
+  doodleCtx.globalAlpha = 1;
 }
 
 function doodleStart(e) {
@@ -121,14 +212,15 @@ function doodleMove(e) {
   if (!doodleDrawing) return;
   const p = doodlePos(e);
   const prev = doodleLastPoint;
-  strokeSegment(prev.x, prev.y, p.x, p.y, doodleTool, doodleColor, doodleSize);
+  const alpha = doodleOpacity / 100;
+  strokeSegment(prev.x, prev.y, p.x, p.y, doodleTool, doodleColor, doodleSize, alpha);
   doodleLastPoint = p;
 
   // 正規化座標(0〜1)にして他プレイヤーへ送信(画面サイズが違っても対応できるように)
   const w = doodleCanvas.width, h = doodleCanvas.height;
   socket.emit('doodle_draw', {
     x0: prev.x / w, y0: prev.y / h, x1: p.x / w, y1: p.y / h,
-    tool: doodleTool, color: doodleColor, size: doodleSize
+    tool: doodleTool, color: doodleColor, size: doodleSize, alpha
   });
   e.preventDefault();
 }
@@ -148,7 +240,7 @@ doodleCanvas.addEventListener('touchend', doodleEnd);
 // 他プレイヤーが描いた線を自分の画面にも反映
 socket.on('doodle_draw', (seg) => {
   const w = doodleCanvas.width, h = doodleCanvas.height;
-  strokeSegment(seg.x0 * w, seg.y0 * h, seg.x1 * w, seg.y1 * h, seg.tool, seg.color, seg.size);
+  strokeSegment(seg.x0 * w, seg.y0 * h, seg.x1 * w, seg.y1 * h, seg.tool, seg.color, seg.size, seg.alpha);
 });
 
 answerImg.addEventListener('load', resizeDoodleCanvas);
@@ -662,9 +754,11 @@ function renderResult(state) {
       rCtx.lineJoin = 'round';
       if (seg.tool === 'eraser') {
         rCtx.globalCompositeOperation = 'destination-out';
+        rCtx.globalAlpha = 1;
         rCtx.lineWidth = seg.size * 2.2;
       } else {
         rCtx.globalCompositeOperation = 'source-over';
+        rCtx.globalAlpha = typeof seg.alpha === 'number' ? seg.alpha : 1;
         rCtx.strokeStyle = seg.color;
         rCtx.lineWidth = seg.size;
       }
@@ -673,6 +767,7 @@ function renderResult(state) {
       rCtx.lineTo(seg.x1 * 160, seg.y1 * 212);
       rCtx.stroke();
       rCtx.globalCompositeOperation = 'source-over';
+      rCtx.globalAlpha = 1;
     });
   }
 

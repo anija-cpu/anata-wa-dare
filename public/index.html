@@ -84,9 +84,24 @@
         </div>
       </div>
       <div class="doodle-toolbar">
-        <div id="doodleColors" class="doodle-colors"></div>
-        <input id="doodleSize" type="range" min="2" max="16" value="4" class="doodle-size-slider" title="ペンの太さ">
-        <button id="btnEraser" type="button" class="tool-btn" title="消しゴム">🧹</button>
+        <div class="color-wheel-wrap">
+          <canvas id="colorWheelCanvas" class="color-wheel-canvas" width="140" height="140"></canvas>
+          <div id="colorWheelMarker" class="color-wheel-marker"></div>
+        </div>
+        <div class="doodle-controls">
+          <div class="doodle-control-row">
+            <span id="colorPreview" class="color-preview"><span id="colorPreviewFill" class="color-preview-fill"></span></span>
+            <label class="doodle-control-label">太さ
+              <input id="doodleSize" type="range" min="2" max="16" value="4" class="doodle-slider" title="ペンの太さ">
+            </label>
+          </div>
+          <div class="doodle-control-row">
+            <label class="doodle-control-label">透明度
+              <input id="doodleOpacity" type="range" min="10" max="100" value="100" class="doodle-slider" title="不透明度">
+            </label>
+            <button id="btnEraser" type="button" class="tool-btn" title="消しゴム">🧹</button>
+          </div>
+        </div>
       </div>
       <div id="promptList" class="prompt-list"></div>
       <p id="writingProgress" class="writing-progress"></p>
